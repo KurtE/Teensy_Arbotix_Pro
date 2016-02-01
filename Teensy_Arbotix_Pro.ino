@@ -13,6 +13,16 @@
 #include <ax12Serial.h>
 #include <BioloidSerial.h>
 #include "globals.h"
+#include "imu.h"
+
+#if NEOPIXEL_PIN
+#include <Adafruit_NeoPixel.h>
+//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
+//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
+//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(1, NEOPIXEL_PIN, NEO_RGB + NEO_KHZ800);
+#endif
 
 //=============================================================================
 //[CONSTANTS]
@@ -38,19 +48,26 @@ void setup()
 {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
-
+#ifdef LED2_PIN
+  pinMode(LED2_PIN, OUTPUT);
+  digitalWrite(LED2_PIN, LOW);
+#endif
   // Temporary Debug stuff
   pinMode(11, OUTPUT);
   pinMode(12, OUTPUT);
   pinMode(4, OUTPUT);
   pinMode(5, OUTPUT);
-  pinMode(6, OUTPUT);
 #ifdef DBGSerial
   delay(2000);
   DBGSerial.begin(115200);
   delay(1000);
   DBGSerial.println("Teensy Arbotix Pro Start");
 #endif  
+#ifdef NEOPIXEL_PIN
+  strip.begin();
+  strip.show(); // Initialize all pixels to 'off'
+#endif
+
   pinMode(AX_BUS_POWER_PIN, OUTPUT);
   digitalWrite(AX_BUS_POWER_PIN, LOW);    // Start off with Servo power off.
   
@@ -61,6 +78,11 @@ void setup()
 
   // clear out USB Input queue
   FlushUSBInputQueue();
+
+#ifdef USE_LSM9DS1
+  // Try to startup imu
+  g_imu.begin();
+#endif   
 }
 
 //-----------------------------------------------------------------------------

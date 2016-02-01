@@ -2,25 +2,32 @@
 #define _GLOBALS_H_
 
 //==================================================================
+// Defines to include or not include options
+//==================================================================
+#define USE_LSM9DS1
+
+//==================================================================
 // Defines 
 //==================================================================
 #define HWSERIAL Serial1
 #define DBGSerial Serial3
+
+// Using #define instead of enum as some may be tested for by #ifdef
 // Define Teeny IO pins
-enum {
-  AX_BUS_POWER_PIN= 2,
-  LED_PIN         =     13,
-  GPIO_1_PIN      = 4,
-  GPIO_2_PIN      = 5,
-  GPIO_3_PIN      = 0,
-  GPIO_4_PIN      = 6,
-  GPIO_5_PIN      = 8,
-  GPIO_6_PIN      = 9,
-  GPIO_7_PIN      = 10, 
+#define   AX_BUS_POWER_PIN  2
+#define   NEOPIXEL_PIN      6
+#define   LED_PIN           13
+#define   LED2_PIN          24    // New on V2
+
+#define   GPIO_1_PIN        4
+#define   GPIO_2_PIN        5
+#define   GPIO_3_PIN        0
+#define   GPIO_4_PIN        8
+#define   GPIO_5_PIN        8
+#define   GPIO_6_PIN        10
   
-  VOLTAGE_ANALOG_PIN = 0,
-  
-};
+#define   VOLTAGE_ANALOG_PIN  10   // Was 0 on V1
+#define   BUTTONS_ANALOG_PIN  12   // Two buttons resistor ladder... 
 
 #define     USART_TIMEOUT_MIN   8   //  x 20us
 #define     SEND_TIMEOUT_MIN    0   //  x 20us
@@ -85,8 +92,8 @@ enum{
     CM730_STATUS_RETURN_LEVEL         = 16,
     CM730_DXL_POWER                   = 24,
     CM730_LED_PANEL                   = 25, // Teensy D13 low bit. D12? for 2nd bit. 
-//    CM730_LED_HEAD_L                  = 26,
-//    CM730_LED_HEAD_H                  = 27,
+    CM730_LED_HEAD_L                  = 26,
+    CM730_LED_HEAD_H                  = 27,
 //    CM730_LED_EYE_L                   = 28,
 //    CM730_LED_EYE_H                   = 29,
     CM730_BUTTON                      = 30, // Teensy Arbotix D10 (Also uses GPIO7) 
@@ -180,6 +187,13 @@ extern void FlushUSBInputQueue(void);
 extern bool ProcessInputFromUSB(void);
 extern bool ProcessInputFromAXBuss(void);
 
+//==================================================================
+// Optional include neopixel stuff...
+//==================================================================
+#if NEOPIXEL_PIN
+#include <Adafruit_NeoPixel.h>
+extern Adafruit_NeoPixel strip;
+#endif
 
 
 

@@ -17,42 +17,42 @@
 //-----------------------------------------------------------------------------
 //                                                    0             1              2                   3            4             5              6              7
 uint8_t g_controller_registers[REG_TABLE_SIZE] = {MODEL_NUMBER_L, MODEL_NUMBER_H, FIRMWARE_VERSION, AX_ID_DEVICE, USART_TIMEOUT, SEND_TIMEOUT, RECEIVE_TIMEOUT, 0,
-//                                                      8  9  0  1  2                            3  4  5  6
-                                                        0, 0, 0, 0, LOW_VOLTAGE_SHUTOFF_DEFAULT, 0, 0, 0, RETURN_LEVEL
-                                                       };
+                                                  //                                                      8  9  0  1  2                            3  4  5  6
+                                                  0, 0, 0, 0, LOW_VOLTAGE_SHUTOFF_DEFAULT, 0, 0, 0, RETURN_LEVEL
+                                                 };
 uint8_t g_controller_gpio_mode_save = 0;
 
-// Maps which Teensy digital pins map the logical GPIO pins. 
-const uint8_t g_controller_gpio_PIN_mapping_table[] = 
-    {GPIO_1_PIN, GPIO_2_PIN, GPIO_3_PIN, GPIO_4_PIN, GPIO_5_PIN, GPIO_6_PIN, GPIO_7_PIN};
+// Maps which Teensy digital pins map the logical GPIO pins.
+const uint8_t g_controller_gpio_PIN_mapping_table[] =
+{GPIO_1_PIN, GPIO_2_PIN, GPIO_3_PIN, GPIO_4_PIN, GPIO_5_PIN, GPIO_6_PIN};
 
 // Maps which Teensy analog pins map to the logical Analog pins - Warning Arduino has wierd pin numbering for analog
-// 0-13 are Analog 0-13 14-23 are again A0-A9, ... 
+// 0-13 are Analog 0-13 14-23 are again A0-A9, ...
 // For debug will map 0 into microphone 1 as to debug voltage code
-const uint8_t g_controller_analog_PIN_mapping_table[] = 
-    { 0, 1, 2, 3, 6, 7, 8, 9, A14, A15, A16, A17, A18, A19, A20 };
+const uint8_t g_controller_analog_PIN_mapping_table[] =
+{ 0, 1, 2, 3, 6, 7, 8, 9, A14, A15, A16, A17, A18, A19, A20 };
 
 
-    
+
 
 const uint8_t g_controller_registers_ranges[][2] =
 {
-  {1,0},    //MODEL_NUMBER_L        0
-  {1,0},    //MODEL_NUMBER_H        1
-  {1,0},    //VERSION               2
-  {0,253},  //ID                    3
-  {1,254},  //BAUD_RATE             4
-  {0,254},  //Return Delay time     5
-  {0,255}, {0,255},  {0,255},  {0,255}, {0, 255}, {0,255}, // 6-11
-  {0,250}, //DOWN_LIMIT_VOLTAGE   12
-  {50,250}, //UP_LIMIT_VOLTAGE 13
-  {0,255},  {0,255},        // 14-15
-  {0,2},//RETURN_LEVEL          16
+  {1, 0},   //MODEL_NUMBER_L        0
+  {1, 0},   //MODEL_NUMBER_H        1
+  {1, 0},   //VERSION               2
+  {0, 253}, //ID                    3
+  {1, 254}, //BAUD_RATE             4
+  {0, 254}, //Return Delay time     5
+  {0, 255}, {0, 255},  {0, 255},  {0, 255}, {0, 255}, {0, 255}, // 6-11
+  {0, 250}, //DOWN_LIMIT_VOLTAGE   12
+  {50, 250}, //UP_LIMIT_VOLTAGE 13
+  {0, 255},  {0, 255},      // 14-15
+  {0, 2}, //RETURN_LEVEL          16
 
-// Not saved to eeprom... 
+  // Not saved to eeprom...
   {1, 0}, {1, 0},  {1, 0},  {1, 0}, {1, 0}, {1, 0}, {1, 0}, // 17-23
 
-    //RAM area
+  //RAM area
   {0, 1}, //  P_DYNAMIXEL_POWER 24
   {0, 7}, //  P_LED_PANNEL  25
   {0, 255}, //  P_LED_HEAD  26
@@ -130,11 +130,11 @@ extern void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_byt
 //-----------------------------------------------------------------------------
 // LocalRegistersRead
 //-----------------------------------------------------------------------------
-void LocalRegistersRead(uint8_t register_id, uint8_t count_bytes) 
+void LocalRegistersRead(uint8_t register_id, uint8_t count_bytes)
 {
 #ifdef DBGSerial
   DBGSerial.printf("LR: %d %d\n\r", register_id, count_bytes);
-#endif  
+#endif
 
   // Several ranges of logical registers to process.
   uint16_t top = (uint16_t)register_id + count_bytes;
@@ -144,9 +144,9 @@ void LocalRegistersRead(uint8_t register_id, uint8_t count_bytes)
     return;
   }
 
-  // See if we need to do any preprocesing. 
+  // See if we need to do any preprocesing.
   CheckHardwareForLocalReadRequest(register_id, count_bytes);
-  
+
   axStatusPacket(ERR_NONE, g_controller_registers + register_id, count_bytes);
 }
 
@@ -154,11 +154,11 @@ void LocalRegistersRead(uint8_t register_id, uint8_t count_bytes)
 //-----------------------------------------------------------------------------
 // LocalRegistersWrite: Update the local registers
 //-----------------------------------------------------------------------------
-void LocalRegistersWrite(uint8_t register_id, uint8_t* data, uint8_t count_bytes) 
+void LocalRegistersWrite(uint8_t register_id, uint8_t* data, uint8_t count_bytes)
 {
 #ifdef DBGSerial
   DBGSerial.printf("LW: %d %d %x\n\r", register_id, count_bytes, *data);
-#endif  
+#endif
   if ( ! ValidateWriteData(register_id, data, count_bytes) ) {
     axStatusPacket( ERR_RANGE, NULL, 0 );
   } else {
@@ -172,35 +172,35 @@ void LocalRegistersWrite(uint8_t register_id, uint8_t* data, uint8_t count_bytes
     // Check to see if we need to do anything to the hardware in response to the
     // changes
     UpdateHardwareAfterLocalWrite(register_id, count_bytes);
-    
+
   }
 }
 
 
 //--------------------------------------------------------------------
-// CheckBatteryVoltage - We will call this from main loop.  
+// CheckBatteryVoltage - We will call this from main loop.
 //    It does some averaging of voltage reads to get a better consisten
 //    voltage.  It will also try to detec when the voltage goes to low
-//    either beause battery is getting low or turned off.  Likewise 
+//    either beause battery is getting low or turned off.  Likewise
 //    may detect when battery is turned on...
 //--------------------------------------------------------------------
 
 // Warning may need to increase sizes if we go beyond 10bit analog reads
 #define MAX_ANALOG_DELTA 50
-uint16_t  g_awVoltages[8] = {0,0,0,0,0,0,0,0};
+uint16_t  g_awVoltages[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 uint16_t  g_wVoltageSum = 0;
 uint8_t   g_iVoltages = 0;
 
-void CheckBatteryVoltage(void) 
+void CheckBatteryVoltage(void)
 {
   // Get the current voltage
   uint16_t cur_analog = analogRead(VOLTAGE_ANALOG_PIN);
 
-  if (abs((int)cur_analog - (int)(g_wVoltageSum/8)) > MAX_ANALOG_DELTA)
+  if (abs((int)cur_analog - (int)(g_wVoltageSum / 8)) > MAX_ANALOG_DELTA)
   {
     // Lets read 8 times and reset sum...
     g_wVoltageSum = 0;
-    for(g_iVoltages = 0; g_iVoltages < 8; g_iVoltages++)
+    for (g_iVoltages = 0; g_iVoltages < 8; g_iVoltages++)
     {
       g_awVoltages[g_iVoltages] = analogRead(VOLTAGE_ANALOG_PIN);
       g_wVoltageSum += g_awVoltages[g_iVoltages];
@@ -215,16 +215,16 @@ void CheckBatteryVoltage(void)
     g_wVoltageSum += cur_analog;
   }
   // Warning - using resistor values like 10000 and 40200 will overflow 32 bit math, but simply need right ratio. so wuse 100 and 402
-  g_controller_registers[CM730_VOLTAGE] = (uint32_t)(g_wVoltageSum*33*(VOLTAGE_DIVIDER_RES1+VOLTAGE_DIVIDER_RES2))
-            / (uint32_t)(1024*8*VOLTAGE_DIVIDER_RES1);
+  g_controller_registers[CM730_VOLTAGE] = (uint32_t)(g_wVoltageSum * 33 * (VOLTAGE_DIVIDER_RES1 + VOLTAGE_DIVIDER_RES2))
+                                          / (uint32_t)(1024 * 8 * VOLTAGE_DIVIDER_RES1);
 
   // Check to see if voltage went low and our servos are on and a low voltage value is set.
-  if (g_controller_registers[CM730_DXL_POWER] && g_controller_registers[TA_DOWN_LIMIT_VOLTAGE] 
-        && (g_controller_registers[CM730_VOLTAGE] <  g_controller_registers[TA_DOWN_LIMIT_VOLTAGE] ))
+  if (g_controller_registers[CM730_DXL_POWER] && g_controller_registers[TA_DOWN_LIMIT_VOLTAGE]
+      && (g_controller_registers[CM730_VOLTAGE] <  g_controller_registers[TA_DOWN_LIMIT_VOLTAGE] ))
   {
-      // Power is too low to run servos so shut them off
-      g_controller_registers[CM730_DXL_POWER] = 0;  // Turn it logically off.
-      UpdateHardwareAfterLocalWrite(CM730_DXL_POWER, 1);  // use the update function to do the real work.
+    // Power is too low to run servos so shut them off
+    g_controller_registers[CM730_DXL_POWER] = 0;  // Turn it logically off.
+    UpdateHardwareAfterLocalWrite(CM730_DXL_POWER, 1);  // use the update function to do the real work.
   }
 }
 
@@ -239,23 +239,31 @@ extern void CheckHardwareForLocalReadRequest(uint8_t register_id, uint8_t count_
   while (count_bytes)
   {
     // Digital Input Range.
-    if ((register_id == CM730_BUTTON) || ((register_id >= TA_GPIO_1) && (register_id <= TA_GPIO_6)))
+    if (register_id == CM730_BUTTON)
     {
-        i = (register_id == CM730_BUTTON) ? 7 : register_id - TA_GPIO_1;
-        g_controller_registers[register_id] = digitalRead(g_controller_gpio_PIN_mapping_table[i]);
-    }  
- 
+      uint16_t analog_value = analogRead(BUTTONS_ANALOG_PIN);
+
+      // quick and dirty analog code to set which if any button may be pressed. 
+      g_controller_registers[CM730_BUTTON] = (analog_value > 450) ? 1 : (analog_value > 150)? 2 : 0;
+    }
+
+    // Digital Input Range.
+    else if ((register_id >= TA_GPIO_1) && (register_id <= TA_GPIO_6))
+    {
+      g_controller_registers[register_id] = digitalRead(g_controller_gpio_PIN_mapping_table[register_id - TA_GPIO_1]);
+    }
+
     // IMU Range ?
     // Our batter voltage - is done in background
-    
+
     // Analog input range
     else if ((register_id >= CM730_ADC1_L) && (register_id <= CM730_ADC15_H))
     {
-      // Get which Analog input we should be getting. 
-      i = (register_id - CM730_ADC1_L) / 2;  
+      // Get which Analog input we should be getting.
+      i = (register_id - CM730_ADC1_L) / 2;
       uint16_t analog_value = analogRead(g_controller_analog_PIN_mapping_table[i]);
-      g_controller_registers[CM730_ADC1_L + i*2] = analog_value & 0xff;
-      g_controller_registers[CM730_ADC1_L + i*2 + 1] = (analog_value >> 8) & 0xff;
+      g_controller_registers[CM730_ADC1_L + i * 2] = analog_value & 0xff;
+      g_controller_registers[CM730_ADC1_L + i * 2 + 1] = (analog_value >> 8) & 0xff;
       register_id++;
       if (!count_bytes--)
         break;
@@ -269,7 +277,7 @@ extern void CheckHardwareForLocalReadRequest(uint8_t register_id, uint8_t count_
 //-----------------------------------------------------------------------------
 // ValidateWriteData: is this a valid range of registers to update?
 //-----------------------------------------------------------------------------
-uint8_t ValidateWriteData(uint8_t register_id, uint8_t* data, uint8_t count_bytes) 
+uint8_t ValidateWriteData(uint8_t register_id, uint8_t* data, uint8_t count_bytes)
 {
   uint16_t top = (uint16_t)register_id + count_bytes;
   if (count_bytes == 0  || ( top >= REG_TABLE_SIZE)) {
@@ -293,7 +301,7 @@ uint8_t ValidateWriteData(uint8_t register_id, uint8_t* data, uint8_t count_byte
 void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_bytes)
 {
   uint8_t i;
-   uint8_t mask;
+  uint8_t mask;
   while (count_bytes)
   {
     switch (register_id)
@@ -303,37 +311,54 @@ void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_bytes)
         break;
       case CM730_LED_PANEL:
         digitalWriteFast(LED_PIN, g_controller_registers[CM730_LED_PANEL] & 1);
+#ifdef LED2_PIN
+        digitalWriteFast(LED2_PIN, (g_controller_registers[CM730_LED_PANEL] & 2) ? HIGH : LOW);
+#endif
         break;
+#ifdef NEOPIXEL_PIN
+      case CM730_LED_HEAD_L:
+        if (count_bytes > 1)
+          break;  // process on the high byte
+      case CM730_LED_HEAD_H:
+        {
+          uint16_t rgb = g_controller_registers[CM730_LED_HEAD_L] || (((uint16_t)g_controller_registers[CM730_LED_HEAD_H]) << 8);
+          uint8_t r = (rgb  << 3) & 0xf8;
+          uint8_t g = (rgb >> 2) & 0xf8;
+          uint8_t b = (rgb >> 7) & 0xf8; 
+          strip.setPixelColor(0, r, g, b );
+          strip.show(); // Initialize all pixels to 'off'
+        }
+        break;
+#endif
       case TA_GPIO_MODE:
-        // Set the GPIO pins modes. 
+        // Set the GPIO pins modes.
         if (g_controller_gpio_mode_save != g_controller_registers[TA_GPIO_MODE])
         {
           mask = 0x1;
           for (i = 0; i < sizeof(g_controller_gpio_PIN_mapping_table); i++)
           {
             if ((g_controller_gpio_mode_save & mask) != (g_controller_registers[TA_GPIO_MODE] & mask))
-              pinMode(g_controller_gpio_PIN_mapping_table[i], (g_controller_registers[TA_GPIO_MODE] & mask)? OUTPUT : INPUT);
-            mask <<= 1;   
+              pinMode(g_controller_gpio_PIN_mapping_table[i], (g_controller_registers[TA_GPIO_MODE] & mask) ? OUTPUT : INPUT);
+            mask <<= 1;
           }
           g_controller_gpio_mode_save = g_controller_registers[TA_GPIO_MODE];
         }
         break;
-      case CM730_BUTTON:  
       case TA_GPIO_1:
       case TA_GPIO_2:
       case TA_GPIO_3:
       case TA_GPIO_4:
       case TA_GPIO_5:
       case TA_GPIO_6:
-        i = (register_id == CM730_BUTTON) ? 7 : register_id - TA_GPIO_1;
-        mask = 1 << i; 
+        i = register_id - TA_GPIO_1;
+        mask = 1 << i;
         if ((g_controller_registers[TA_GPIO_MODE] & mask))
           digitalWrite(g_controller_gpio_PIN_mapping_table[i], g_controller_registers[register_id]);
         else
-          pinMode(g_controller_gpio_PIN_mapping_table[i], g_controller_registers[register_id]? INPUT_PULLUP : INPUT);
-        break;  
-      
-          
+          pinMode(g_controller_gpio_PIN_mapping_table[i], g_controller_registers[register_id] ? INPUT_PULLUP : INPUT);
+        break;
+
+
     }
     register_id++;
     count_bytes--;
@@ -351,12 +376,12 @@ void setAXtoTX(bool fTX)
     g_AX_IS_TX = fTX;
     if (fTX)
     {
-//      digitalWriteFast(6, LOW);
+      //      digitalWriteFast(6, LOW);
       setTX(0);
     }
     else
     {
-//      digitalWriteFast(6, HIGH);
+      //      digitalWriteFast(6, HIGH);
       setRX(0);
     }
   }
@@ -367,7 +392,7 @@ void setAXtoTX(bool fTX)
 //-----------------------------------------------------------------------------
 void InitalizeRegisterTable(void)
 {
-  uint8_t saved_reg_values[CM730_STATUS_RETURN_LEVEL+1];
+  uint8_t saved_reg_values[CM730_STATUS_RETURN_LEVEL + 1];
   uint8_t checksum = 0;
 
   // First check to see if valid version is stored in EEPROM...
