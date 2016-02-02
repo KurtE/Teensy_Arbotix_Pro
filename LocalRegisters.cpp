@@ -321,7 +321,7 @@ void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_bytes)
           break;  // process on the high byte
       case CM730_LED_HEAD_H:
         {
-          uint16_t rgb = g_controller_registers[CM730_LED_HEAD_L] || (((uint16_t)g_controller_registers[CM730_LED_HEAD_H]) << 8);
+          uint16_t rgb = (((uint16_t)(g_controller_registers[CM730_LED_HEAD_H])) << 8) + (uint16_t)(g_controller_registers[CM730_LED_HEAD_L]);
           uint8_t r = (rgb  << 3) & 0xf8;
           uint8_t g = (rgb >> 2) & 0xf8;
           uint8_t b = (rgb >> 7) & 0xf8; 
