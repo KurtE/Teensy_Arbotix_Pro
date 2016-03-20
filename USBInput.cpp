@@ -45,6 +45,7 @@ void passBufferedDataToServos(void) {
 void pass_bytes(uint8_t nb_bytes) {
   if (nb_bytes) {
     setAXtoTX(true);
+//    ax12write(rxbyte, nb_bytes);
     for (uint8_t i = 0; i < nb_bytes; i++) {
       ax12writeB(rxbyte[i]);
     }
@@ -58,11 +59,11 @@ bool ProcessInputFromUSB(void)
 {
   bool we_did_something = false;
   // Main loop, lets loop through reading any data that is coming in from the USB
-  while (Serial.available())
+  while (PCSerial.available())
   {
     we_did_something = true;
     digitalWriteFast(13, digitalRead(13)? LOW : HIGH);
-    uint8_t ch = Serial.read();
+    uint8_t ch = PCSerial.read();
     last_message_time = micros();
     switch (ax_state) {
       case AX_SEARCH_FIRST_FF:
@@ -92,6 +93,11 @@ bool ProcessInputFromUSB(void)
           pass_bytes(1); // let a 0xFF pass
         } else {
           ax_state = PACKET_LENGTH;
+
+          // Check to see if we should start sending out the data here.  
+          if (rxbyte[PACKET_ID] != g_controller_registers[CM730_ID] && rxbyte[PACKET_ID] != AX_ID_BROADCAST ) {
+            pass_bytes(rxbyte_count);
+          }
         }
         break;
 
@@ -105,7 +111,8 @@ bool ProcessInputFromUSB(void)
             passBufferedDataToServos();
           }
         } else {
-          pass_bytes(rxbyte_count);
+          setAXtoTX(true);
+          ax12writeB(ch);
           ax_state = AX_PASS_TO_SERVOS;
         }
         break;
@@ -199,8 +206,7 @@ bool ProcessInputFromUSB(void)
 }  
 
 //-----------------------------------------------------------------------------
-// ProcessInputFromUSB - Process all of the input bytes that are buffered up
-//  from the USB
+// FlushUSBInutQueue - Flush all of the data out of the input queue...
 //-----------------------------------------------------------------------------
 void FlushUSBInputQueue(void)
 {

@@ -4,27 +4,54 @@
 //==================================================================
 // Defines to include or not include options
 //==================================================================
-#define USE_LSM9DS1
+//#define USE_LSM9DS1
 
 //==================================================================
 // Defines 
 //==================================================================
 #define HWSERIAL Serial1
-#define DBGSerial Serial3
+//#define DBGSerial Serial
+
+#define PCSerial Serial2   // Default to USB
+//#define PCSerial_USB    // Is the PCSerial going to USB?
+#define V03_BOARD
+//#define V02_BOARD
 
 // Using #define instead of enum as some may be tested for by #ifdef
 // Define Teeny IO pins
-#define   AX_BUS_POWER_PIN  2
-#define   NEOPIXEL_PIN      6
-#define   LED_PIN           13
-#define   LED2_PIN          24    // New on V2
 
+// V0.2
+#ifdef V02_BOARD
+#define SERVO_DIRECTION_PIN -1
+#define   AX_BUS_POWER_PIN  2
+#define   SOUND_PIN         3
 #define   GPIO_1_PIN        4
 #define   GPIO_2_PIN        5
 #define   GPIO_3_PIN        0
 #define   GPIO_4_PIN        8
 #define   GPIO_5_PIN        8
 #define   GPIO_6_PIN        10
+
+#endif
+
+#ifdef V03_BOARD
+//V0.3
+#define SERVO_DIRECTION_PIN 2
+#define   AX_BUS_POWER_PIN  3
+#define   SOUND_PIN         4
+
+#define   GPIO_1_PIN        32
+#define   GPIO_2_PIN        33
+#define   GPIO_3_PIN        5
+#define   GPIO_4_PIN        8
+#define   GPIO_5_PIN        11
+#define   GPIO_6_PIN        12
+#endif
+
+#define   LED_PIN           13
+#define   LED2_PIN          24    // New on V2
+#define   NEOPIXEL_PIN      6
+
   
 #define   VOLTAGE_ANALOG_PIN  10   // Was 0 on V1
 #define   BUTTONS_ANALOG_PIN  12   // Two buttons resistor ladder... 
@@ -183,7 +210,7 @@ extern void sync_read(uint8_t id, uint8_t* params, uint8_t nb_params);
 extern void setAXtoTX(bool fTX);
 extern void MaybeFlushUSBOutputData(void);
 extern void FlushUSBInputQueue(void);
-
+extern void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_bytes);
 extern bool ProcessInputFromUSB(void);
 extern bool ProcessInputFromAXBuss(void);
 

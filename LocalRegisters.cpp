@@ -181,7 +181,7 @@ void LocalRegistersWrite(uint8_t register_id, uint8_t* data, uint8_t count_bytes
 // CheckBatteryVoltage - We will call this from main loop.
 //    It does some averaging of voltage reads to get a better consisten
 //    voltage.  It will also try to detec when the voltage goes to low
-//    either beause battery is getting low or turned off.  Likewise
+//    either due to the battery is getting low or turned off.  Likewise
 //    may detect when battery is turned on...
 //--------------------------------------------------------------------
 
@@ -254,7 +254,7 @@ extern void CheckHardwareForLocalReadRequest(uint8_t register_id, uint8_t count_
     }
 
     // IMU Range ?
-    // Our batter voltage - is done in background
+    // Our battery voltage - is done in background
 
     // Analog input range
     else if ((register_id >= CM730_ADC1_L) && (register_id <= CM730_ADC15_H))
@@ -376,12 +376,10 @@ void setAXtoTX(bool fTX)
     g_AX_IS_TX = fTX;
     if (fTX)
     {
-      //      digitalWriteFast(6, LOW);
       setTX(0);
     }
     else
     {
-      //      digitalWriteFast(6, HIGH);
       setRX(0);
     }
   }

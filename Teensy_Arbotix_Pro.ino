@@ -38,7 +38,9 @@ uint8_t rxbyte_count = 0;   // number of used bytes in rxbyte buffer
 unsigned long last_message_time;
 uint8_t g_passthrough_mode;
 
-unsigned long baud = 1000000;
+//unsigned long baud = 1000000;
+unsigned long baud = 2000000;
+IntervalTimer interval_timer_background_;
 
 
 //-----------------------------------------------------------------------------
@@ -47,15 +49,15 @@ unsigned long baud = 1000000;
 void setup()
 {
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
+  digitalWriteFast(LED_PIN, LOW);
 #ifdef LED2_PIN
   pinMode(LED2_PIN, OUTPUT);
-  digitalWrite(LED2_PIN, LOW);
+  digitalWriteFast(LED2_PIN, LOW);
 #endif
   // Temporary Debug stuff
   pinMode(11, OUTPUT);
   pinMode(12, OUTPUT);
-  pinMode(4, OUTPUT);
+  pinMode(32, OUTPUT);
   pinMode(5, OUTPUT);
 #ifdef DBGSerial
   delay(2000);
@@ -65,19 +67,36 @@ void setup()
 #endif  
 #ifdef NEOPIXEL_PIN
   strip.begin();
+  strip.setPixelColor(0, 0x80, 0, 0 );
   strip.show(); // Initialize all pixels to 'off'
+  delay(250);
+  strip.setPixelColor(0, 0, 0x80, 0 );
+  strip.show(); // Initialize all pixels to 'off'
+  delay(250);
+  strip.setPixelColor(0, 0, 0, 0x80 );
+  strip.show(); // Initialize all pixels to 'off'
+  
 #endif
 
   pinMode(AX_BUS_POWER_PIN, OUTPUT);
   digitalWrite(AX_BUS_POWER_PIN, LOW);    // Start off with Servo power off.
   
-  Serial.begin(baud);	// USB, communication to PC or Mac
-  ax12Init(1000000, &HWSERIAL);
+  PCSerial.begin(baud);	// USB, communication to PC or Mac
+  ax12Init(1000000, &HWSERIAL, SERVO_DIRECTION_PIN);
+  
   setAXtoTX(false);
   InitalizeRegisterTable(); 
 
   // clear out USB Input queue
   FlushUSBInputQueue();
+
+  // Make sure some of the output state matches our registers
+  UpdateHardwareAfterLocalWrite(CM730_LED_PANEL, CM730_LED_HEAD_H-CM730_LED_PANEL+1);
+
+
+  // Start up our background task
+  interval_timer_background_.begin(BackgroundTimerInterrupt, 100000);  // setup for 100 times per second...
+
 
 #ifdef USE_LSM9DS1
   // Try to startup imu
@@ -91,29 +110,37 @@ void setup()
 void loop()
 {
 
-  digitalWrite(11,  HIGH);
+  digitalWriteFast(11,  HIGH);
   bool did_something = ProcessInputFromUSB();
-  digitalWrite(11,  LOW);
-  yield();  // Give a chance for other things to happen
+  digitalWriteFast(11,  LOW);
+//  yield();  // Give a chance for other things to happen
 
   // Call off to process any input that we may have received from the AXBuss
-  digitalWrite(4,  HIGH);
+  digitalWriteFast(32,  HIGH);
   did_something |= ProcessInputFromAXBuss();
-  digitalWrite(4,  LOW);
-  yield();
+  digitalWriteFast(32,  LOW);
+//  yield();
 
   // If we did not process any data input from USB or from AX Buss, maybe we should flush anything we have 
   // pending to go back to main processor
+#if 0
   if (!did_something) 
   {
     MaybeFlushUSBOutputData();
-    digitalWrite(5,  HIGH);
+    digitalWriteFast(5,  HIGH);
     CheckBatteryVoltage();
-    digitalWrite(5,  LOW);
+    digitalWriteFast(5,  LOW);
   }
-  yield();
+#endif  
 }
 
+
+void BackgroundTimerInterrupt()
+{
+    digitalWriteFast(5,  HIGH);
+    CheckBatteryVoltage();
+    digitalWriteFast(5,  LOW);
+}
 
 
 

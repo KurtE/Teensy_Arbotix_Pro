@@ -31,11 +31,11 @@ void sync_read(uint8_t id, uint8_t* params, uint8_t nb_params) {
   uint8_t nb_to_read = params[1];    // # of bytes to read from each servo
   uint8_t nb_servos = nb_params - 2;
 
-  Serial.write(0xff);
-  Serial.write(0xff);
-  Serial.write(id);
-  Serial.write(2 + (nb_to_read * nb_servos));
-  Serial.write(0);  //error code
+  PCSerial.write(0xff);
+  PCSerial.write(0xff);
+  PCSerial.write(id);
+  PCSerial.write(2 + (nb_to_read * nb_servos));
+  PCSerial.write(0);  //error code
 
   // get ax data
   uint8_t checksum = id + (nb_to_read * nb_servos) + 2; // start accumulating the checksum
@@ -44,7 +44,7 @@ void sync_read(uint8_t id, uint8_t* params, uint8_t nb_params) {
     if ( ax12GetRegister(servos[servo_id], addr, nb_to_read)) {
       for (uint8_t i = 0; i < nb_to_read; i++) {
         checksum += ax_rx_buffer[i + 5];
-        Serial.write(ax_rx_buffer[i + 5]);
+        PCSerial.write(ax_rx_buffer[i + 5]);
 #ifdef DBGSerial
   DBGSerial.print(ax_rx_buffer[i + 5], HEX);
   DBGSerial.print(" ");
@@ -53,16 +53,16 @@ void sync_read(uint8_t id, uint8_t* params, uint8_t nb_params) {
     } else {
       for (uint8_t i = 0; i < nb_to_read; i++) {
         checksum += 0xFF;
-        Serial.write(0xFF);
+        PCSerial.write(0xFF);
       }
     }
   }
 
-  Serial.write(255 - ((checksum) % 256));
+  PCSerial.write(255 - ((checksum) % 256));
 #ifdef DBGSerial
   DBGSerial.println("SF");
 #endif
-  Serial.flush();
+  PCSerial.flush();
 
   // allow data from USART to be sent directly to USB
   g_passthrough_mode = AX_PASSTHROUGH;
