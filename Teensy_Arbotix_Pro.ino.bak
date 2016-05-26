@@ -49,21 +49,16 @@ IntervalTimer interval_timer_background_;
 void setup()
 {
   pinMode(LED_PIN, OUTPUT);
-  digitalWriteFast(LED_PIN, HIGH);
+  digitalWriteFast(LED_PIN, LOW);
 #ifdef LED2_PIN
   pinMode(LED2_PIN, OUTPUT);
   digitalWriteFast(LED2_PIN, LOW);
 #endif
-  
   // Temporary Debug stuff
-#ifdef USE_DEBUG_IOPINS
-  pinMode(DEBUG_PIN_USB_INPUT, OUTPUT);
-  pinMode(DEBUG_PIN_SEND_STATUS_PACKET, OUTPUT);
-  pinMode(DEBUG_PIN_AX_INPUT, OUTPUT);
-  pinMode(DEBUG_PIN_BACKGROUND, OUTPUT);
-  pinMode(3, OUTPUT);
-  pinMode(4, OUTPUT);
-#endif
+  pinMode(11, OUTPUT);
+  pinMode(12, OUTPUT);
+  pinMode(32, OUTPUT);
+  pinMode(5, OUTPUT);
 #ifdef DBGSerial
   delay(2000);
   DBGSerial.begin(115200);
@@ -80,11 +75,7 @@ void setup()
   delay(250);
   strip.setPixelColor(0, 0, 0, 0x80 );
   strip.show(); // Initialize all pixels to 'off'
-#endif
   
-  // Hack define which
-#ifdef HWSerial_TXPIN
-  pinMode(HWSerial_TXPIN, INPUT_PULLUP);
 #endif
 
   pinMode(AX_BUS_POWER_PIN, OUTPUT);
@@ -93,7 +84,7 @@ void setup()
   PCSerial.begin(baud);	// USB, communication to PC or Mac
   ax12Init(1000000, &HWSERIAL, SERVO_DIRECTION_PIN);
   
-  setAXtoTX();
+  setAXtoTX(false);
   InitalizeRegisterTable(); 
 
   // clear out USB Input queue
@@ -110,15 +101,7 @@ void setup()
 #ifdef USE_LSM9DS1
   // Try to startup imu
   g_imu.begin();
-#endif  
-
-  for (int i=0;i<2; i++) {
-    digitalWriteFast(LED_PIN, HIGH);
-    delay(250);
-    digitalWriteFast(LED_PIN, LOW);
-    delay(250);
-  }
- 
+#endif   
 }
 
 //-----------------------------------------------------------------------------
@@ -127,15 +110,15 @@ void setup()
 void loop()
 {
 
-  debug_digitalWrite( DEBUG_PIN_USB_INPUT,  HIGH);
+  digitalWriteFast(11,  HIGH);
   bool did_something = ProcessInputFromUSB();
-  debug_digitalWrite( DEBUG_PIN_USB_INPUT,  LOW);
+  digitalWriteFast(11,  LOW);
 //  yield();  // Give a chance for other things to happen
 
   // Call off to process any input that we may have received from the AXBuss
-  debug_digitalWrite( DEBUG_PIN_AX_INPUT,  HIGH);
+  digitalWriteFast(32,  HIGH);
   did_something |= ProcessInputFromAXBuss();
-  debug_digitalWrite( DEBUG_PIN_AX_INPUT,  LOW);
+  digitalWriteFast(32,  LOW);
 //  yield();
 
   // If we did not process any data input from USB or from AX Buss, maybe we should flush anything we have 
@@ -143,10 +126,10 @@ void loop()
 #if 0
   if (!did_something) 
   {
-    MaybeFlushDataBackToHost();
-    debug_digitalWrite( DEBUG_PIN_BACKGROUND,  HIGH);
+    MaybeFlushUSBOutputData();
+    digitalWriteFast(5,  HIGH);
     CheckBatteryVoltage();
-    debug_digitalWrite( DEBUG_PIN_BACKGROUND,  LOW);
+    digitalWriteFast(5,  LOW);
   }
 #endif  
 }
@@ -154,7 +137,7 @@ void loop()
 uint8_t g_Timer_loop_count = 0;
 void BackgroundTimerInterrupt()
 {
-    debug_digitalWrite( DEBUG_PIN_BACKGROUND,  HIGH);
+    digitalWriteFast(5,  HIGH);
     CheckBatteryVoltage();
 
     g_Timer_loop_count++;
@@ -165,7 +148,7 @@ void BackgroundTimerInterrupt()
       if ( g_controller_registers[CM730_BUTTON] == 0x3)
         SoftwareReset();
     }
-    debug_digitalWrite(5,  LOW);
+    digitalWriteFast(5,  LOW);
 }
 
 void SoftwareReset() {

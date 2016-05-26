@@ -1,7 +1,7 @@
 //=============================================================================
 // Header Files
 //=============================================================================
-
+#include <EEPROM.h>
 #include <ax12Serial.h>
 #include <BioloidSerial.h>
 #include "globals.h"
@@ -44,7 +44,7 @@ void passBufferedDataToServos(void) {
 //-----------------------------------------------------------------------------
 void pass_bytes(uint8_t nb_bytes) {
   if (nb_bytes) {
-    setAXtoTX();
+    setAXtoTX(true);
 //    ax12write(rxbyte, nb_bytes);
     for (uint8_t i = 0; i < nb_bytes; i++) {
       ax12writeB(rxbyte[i]);
@@ -59,11 +59,11 @@ bool ProcessInputFromUSB(void)
 {
   bool we_did_something = false;
   // Main loop, lets loop through reading any data that is coming in from the USB
-  int ch;
-  while ((ch = PCSerial.read()) != -1)
+  while (PCSerial.available())
   {
     we_did_something = true;
-    digitalWrite(LED_PIN, digitalRead(LED_PIN)? LOW : HIGH);
+    digitalWriteFast(13, digitalRead(13)? LOW : HIGH);
+    uint8_t ch = PCSerial.read();
     last_message_time = micros();
     switch (ax_state) {
       case AX_SEARCH_FIRST_FF:
@@ -72,7 +72,7 @@ bool ProcessInputFromUSB(void)
           ax_state = AX_SEARCH_SECOND_FF;
           rxbyte_count = 1;
         } else {
-          setAXtoTX();
+          setAXtoTX(true);
           ax12writeB(ch);
         }
         break;
@@ -111,7 +111,7 @@ bool ProcessInputFromUSB(void)
             passBufferedDataToServos();
           }
         } else {
-          setAXtoTX();
+          setAXtoTX(true);
           ax12writeB(ch);
           ax_state = AX_PASS_TO_SERVOS;
         }
@@ -178,7 +178,7 @@ bool ProcessInputFromUSB(void)
         break;
 
       case AX_PASS_TO_SERVOS:
-        setAXtoTX();
+        setAXtoTX(true);
         ax12writeB(ch);
         rxbyte_count++;
         if (rxbyte_count >= (rxbyte[PACKET_LENGTH] + 4)) { // we have read all the data for the packet // we have let the right number of bytes pass
@@ -199,7 +199,7 @@ bool ProcessInputFromUSB(void)
   }
   // If we are at the waiting for first ff and no more input, then set AX back to read
   if (ax_state == AX_SEARCH_FIRST_FF)
-    setAXtoRX();
+    setAXtoTX(false);
 
   return we_did_something;  
 

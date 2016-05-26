@@ -6,7 +6,7 @@
 //=============================================================================
 // Header Files
 //=============================================================================
-
+#include <EEPROM.h>
 #include <ax12Serial.h>
 #include <BioloidSerial.h>
 #include "globals.h"
@@ -31,71 +31,34 @@ void sync_read(uint8_t id, uint8_t* params, uint8_t nb_params) {
   uint8_t nb_to_read = params[1];    // # of bytes to read from each servo
   uint8_t nb_servos = nb_params - 2;
 
-#ifdef BUFFER_TO_USB
-  g_abToUSBCnt = 0;
-  g_abToUSBBuffer[g_abToUSBCnt++] = (0xff);
-  g_abToUSBBuffer[g_abToUSBCnt++] = (0xff);
-  g_abToUSBBuffer[g_abToUSBCnt++] = (id);
-  g_abToUSBBuffer[g_abToUSBCnt++] = (2 + (nb_to_read * nb_servos));
-  g_abToUSBBuffer[g_abToUSBCnt++] = ((uint8_t)0);  //error code
-#else
   PCSerial.write(0xff);
   PCSerial.write(0xff);
   PCSerial.write(id);
   PCSerial.write(2 + (nb_to_read * nb_servos));
-  PCSerial.write((uint8_t)0);  //error code
-#endif
+  PCSerial.write(0);  //error code
+
   // get ax data
   uint8_t checksum = id + (nb_to_read * nb_servos) + 2; // start accumulating the checksum
   uint8_t* servos = params + 2; // pointer to the ids of the servos to read from
   for (uint8_t servo_id = 0; servo_id < nb_servos; servo_id++) {
-    uint8_t id = servos[servo_id];
-    setTX(id);
-    // 0xFF 0xFF ID LENGTH INSTRUCTION PARAM... CHECKSUM
-    int checksum_out = ~((id + 6 + addr + nb_to_read) % 256);
-    ax12writeB(0xFF);
-    ax12writeB(0xFF);
-    ax12writeB(id);
-    ax12writeB(4);    // length
-    ax12writeB(AX_READ_DATA);
-    ax12writeB(addr);
-    ax12writeB(nb_to_read);
-    ax12writeB(checksum_out);
-
-    setRX(id);
-    if (ax12ReadPacket(nb_to_read + 6) > 0) {
+    if ( ax12GetRegister(servos[servo_id], addr, nb_to_read)) {
       for (uint8_t i = 0; i < nb_to_read; i++) {
-        uint8_t b = ax_rx_buffer[i + 5];
-        checksum += b ;
-#ifdef BUFFER_TO_USB
-        g_abToUSBBuffer[g_abToUSBCnt++] = b;
-#else
-        PCSerial.write(b);
-#endif
+        checksum += ax_rx_buffer[i + 5];
+        PCSerial.write(ax_rx_buffer[i + 5]);
 #ifdef DBGSerial
-        DBGSerial.print(b , HEX);
+  DBGSerial.print(ax_rx_buffer[i + 5], HEX);
   DBGSerial.print(" ");
 #endif
       }
     } else {
       for (uint8_t i = 0; i < nb_to_read; i++) {
         checksum += 0xFF;
-#ifdef BUFFER_TO_USB
-        g_abToUSBBuffer[g_abToUSBCnt++] = 0xFF;
-#else
         PCSerial.write(0xFF);
-#endif
       }
     }
   }
 
-#ifdef BUFFER_TO_USB
-  g_abToUSBBuffer[g_abToUSBCnt++] = (255 - ((checksum) % 256));
-  PCSerial.write(g_abToUSBBuffer, g_abToUSBCnt);
-
-#else
   PCSerial.write(255 - ((checksum) % 256));
-#endif
 #ifdef DBGSerial
   DBGSerial.println("SF");
 #endif

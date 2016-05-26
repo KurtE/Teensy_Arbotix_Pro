@@ -7,6 +7,7 @@
 //=============================================================================
 // Header Files
 //=============================================================================
+#include <EEPROM.h>
 #include <ax12Serial.h>
 #include <BioloidSerial.h>
 #include "globals.h"
@@ -103,7 +104,7 @@ bool ProcessInputFromAXBuss(void)
       debug_digitalWrite( 4, LOW);
     }
 #endif
-    MaybeFlushDataBackToHost();
+    MaybeFlushUSBOutputData();
   }
   return characters_read;
 }
@@ -112,7 +113,7 @@ bool ProcessInputFromAXBuss(void)
 // If we are in pass through and we don't still have any data coming in to 
 // us, maybe we should tell USB to send back the data now!
 //-----------------------------------------------------------------------------
-void MaybeFlushDataBackToHost()
+void MaybeFlushUSBOutputData()
 {  
 #ifdef PCSerial_USB  
 // If we are communicating with USB, then maybe want to do flushes.  If not probably don't need to. 

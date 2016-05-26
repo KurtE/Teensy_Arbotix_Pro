@@ -369,6 +369,25 @@ void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_bytes)
 
 
 //-----------------------------------------------------------------------------
+// setAXtoTX - Set the Tx buffer to input or output.
+//-----------------------------------------------------------------------------
+static bool g_AX_IS_TX = false;
+void setAXtoTX(bool fTX)
+{
+  if (g_AX_IS_TX != fTX) {
+    g_AX_IS_TX = fTX;
+    if (fTX)
+    {
+      setTX(0);
+    }
+    else
+    {
+      setRX(0);
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------
 // InitializeRegisterTable()
 //-----------------------------------------------------------------------------
 void InitalizeRegisterTable(void)
