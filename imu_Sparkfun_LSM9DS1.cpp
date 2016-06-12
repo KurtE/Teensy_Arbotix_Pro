@@ -88,22 +88,22 @@ void IMU::end() {
 //-----------------------------------------------------------------------------
 void IMU::update() {
 
-  // Read Gyro and accell... Hopefully 
+  // Read Gyro and accell... Hopefully
   lsm9ds1.readGyro();
-  g_controller_registers[CM730_GYRO_Z_L] = lsm9ds1.gz & 0xff;
-  g_controller_registers[CM730_GYRO_Z_H] = (lsm9ds1.gz >> 8) & 0xff;
-  g_controller_registers[CM730_GYRO_Y_L] = lsm9ds1.gy & 0xff;
-  g_controller_registers[CM730_GYRO_Y_H] = (lsm9ds1.gy >> 8) & 0xff;
-  g_controller_registers[CM730_GYRO_X_L] = lsm9ds1.gx & 0xff;
-  g_controller_registers[CM730_GYRO_X_H] = (lsm9ds1.gx >> 8) & 0xff;
+  g_controller_registers[TDSC_GYRO_Z_L] = lsm9ds1.gz & 0xff;
+  g_controller_registers[TDSC_GYRO_Z_H] = (lsm9ds1.gz >> 8) & 0xff;
+  g_controller_registers[TDSC_GYRO_Y_L] = lsm9ds1.gy & 0xff;
+  g_controller_registers[TDSC_GYRO_Y_H] = (lsm9ds1.gy >> 8) & 0xff;
+  g_controller_registers[TDSC_GYRO_X_L] = lsm9ds1.gx & 0xff;
+  g_controller_registers[TDSC_GYRO_X_H] = (lsm9ds1.gx >> 8) & 0xff;
 
   lsm9ds1.readAccel();
-  g_controller_registers[CM730_ACCEL_Z_L] = lsm9ds1.az & 0xff;
-  g_controller_registers[CM730_ACCEL_Z_H] = (lsm9ds1.az >> 8) & 0xff;
-  g_controller_registers[CM730_ACCEL_Y_L] = lsm9ds1.ay & 0xff;
-  g_controller_registers[CM730_ACCEL_Y_H] = (lsm9ds1.ay >> 8) & 0xff;
-  g_controller_registers[CM730_ACCEL_X_L] = lsm9ds1.ax & 0xff;
-  g_controller_registers[CM730_ACCEL_X_H] = (lsm9ds1.ax >> 8) & 0xff;
+  g_controller_registers[TDSC_ACCEL_Z_L] = lsm9ds1.az & 0xff;
+  g_controller_registers[TDSC_ACCEL_Z_H] = (lsm9ds1.az >> 8) & 0xff;
+  g_controller_registers[TDSC_ACCEL_Y_L] = lsm9ds1.ay & 0xff;
+  g_controller_registers[TDSC_ACCEL_Y_H] = (lsm9ds1.ay >> 8) & 0xff;
+  g_controller_registers[TDSC_ACCEL_X_L] = lsm9ds1.ax & 0xff;
+  g_controller_registers[TDSC_ACCEL_X_H] = (lsm9ds1.ax >> 8) & 0xff;
 
 }
 

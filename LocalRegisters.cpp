@@ -43,10 +43,10 @@ const uint8_t g_controller_registers_ranges[][2] =
   {0, 253}, //ID                    3
   {1, 254}, //BAUD_RATE             4
   {0, 254}, //Return Delay time     5
-  {0, 255}, {0, 255},  {0, 255},  {0, 255}, {0, 255}, {0, 255}, // 6-11
+  {0, 0xff}, {0, 0xff},  {0, 0xff},  {0, 0xff}, {0, 0xff}, {0, 0xff}, // 6-11
   {0, 250}, //DOWN_LIMIT_VOLTAGE   12
   {50, 250}, //UP_LIMIT_VOLTAGE 13
-  {0, 255},  {0, 255},      // 14-15
+  {0, 0xff},  {0, 0xff},      // 14-15
   {0, 2}, //RETURN_LEVEL          16
 
   // Not saved to eeprom...
@@ -55,12 +55,12 @@ const uint8_t g_controller_registers_ranges[][2] =
   //RAM area
   {0, 1}, //  P_DYNAMIXEL_POWER 24
   {0, 7}, //  P_LED_PANNEL  25
-  {0, 255}, //  P_LED_HEAD  26
+  {0, 0xff}, //  P_LED_HEAD  26
   {0, 127}, //  - 27
-  {0, 255}, //  P_LED_EYE 28
+  {0, 0xff}, //  P_LED_EYE 28
   {0, 127}, //  - 29
   {0, 1}, //  P_BUTTON  30 Also D7
-  {0, 255},  //  - 31 digital mode
+  {0, 0xff},  //  - 31 digital mode
   {0, 1}, //  - 32 D1
   {0, 1}, //  - 33 D2
   {0, 1}, //  - 34 D3
@@ -110,6 +110,36 @@ const uint8_t g_controller_registers_ranges[][2] =
   {1, 0}, //  -       78
   {1, 0}, //  P_ADC15     79
   {1, 0}, //  -       80
+  // Setup the  Interpolation area...
+  {1, 0},{1, 0},{1, 0},{1, 0},{1, 0},{1, 0},{1, 0},{1, 0},{1, 0},{1, 0}, // 81-90
+  {1, 0},{1, 0},{1, 0},{1, 0},{1, 0},                                    // 91-5
+  {0, 32},    // TDSC_GM_SERVO_CNT 
+  {0, 32},    // TDSC_GM_SERVO_CNT_TOTAL,                // Total count - allows ones outside of group move.
+  {5, 50},    // TDSC_GM_FRAME_TIME_MS,                  // Frame time in mS
+  {0, 0xff},   // TDSC_GM_IO_PIN_MOVE_ACTIVE,             // option to use io pin to show that GM is active
+  {0, 0xff},   // TDSC_GM_IO_PIN_MOVE_INTERPOLATE,        // Like above but shows when interpolation is happening.
+  {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff},  // TDSC_GM_SERVO_0_ID - 31
+  {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff},       
+  {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff},       
+  {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff},       
+  {0, 0xff},   // TDSC_GM_SERVO_CNT_MOVING,
+  {0, 0xff},   // TDSC_GM_MOVE_COMMAND,              // Move Status options
+  {0, 0xff},   // TDSC_GM_MOVE_TIME_L,              // Low move time
+  {0, 0xff},   // TDSC_GM_MOVE_TIME_H,              // high move time
+  {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         // TDSC_GM_SERVO_0_GOAL_POS_L H ,
+  {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         //
+  {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         //
+  {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         //
+  {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         //
+  {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         //
+  {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         //
+  {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         //
+  // Single Servo Timed move Command
+  {0, 31},      // TDSC_TM_SLOT,                     // Which slot
+  {0, 0xff},   //TDSC_TM_MOVE_TIME_L,
+  {0, 0xff},   //TDSC_TM_MOVE_TIME_H,
+  {0, 0xff},   //TDSC_TM_GOAL_POS_L,
+  {0, 0xff}   //TDSC_TM_GOAL_POS_H
 };
 
 
@@ -165,7 +195,7 @@ void LocalRegistersWrite(uint8_t register_id, uint8_t* data, uint8_t count_bytes
     memcpy(g_controller_registers + register_id, data, count_bytes);
 
     // If at least some of the registers set is in the EEPROM area, save updates
-    if (register_id <= CM730_STATUS_RETURN_LEVEL)
+    if (register_id <= TDSC_STATUS_RETURN_LEVEL)
       SaveEEPromSectionsLocalRegisters();
     axStatusPacket(ERR_NONE, NULL, 0 );
 
@@ -215,16 +245,16 @@ void CheckBatteryVoltage(void)
     g_wVoltageSum += cur_analog;
   }
   // Warning - using resistor values like 10000 and 40200 will overflow 32 bit math, but simply need right ratio. so wuse 100 and 402
-  g_controller_registers[CM730_VOLTAGE] = (uint32_t)(g_wVoltageSum * 33 * (VOLTAGE_DIVIDER_RES1 + VOLTAGE_DIVIDER_RES2))
-                                          / (uint32_t)(1024 * 8 * VOLTAGE_DIVIDER_RES1);
+  g_controller_registers[TDSC_VOLTAGE] = (uint32_t)(g_wVoltageSum * 33 * (VOLTAGE_DIVIDER_RES1 + VOLTAGE_DIVIDER_RES2))
+                                         / (uint32_t)(1024 * 8 * VOLTAGE_DIVIDER_RES1);
 
   // Check to see if voltage went low and our servos are on and a low voltage value is set.
-  if (g_controller_registers[CM730_DXL_POWER] && g_controller_registers[TA_DOWN_LIMIT_VOLTAGE]
-      && (g_controller_registers[CM730_VOLTAGE] <  g_controller_registers[TA_DOWN_LIMIT_VOLTAGE] ))
+  if (g_controller_registers[TDSC_DXL_POWER] && g_controller_registers[TA_DOWN_LIMIT_VOLTAGE]
+      && (g_controller_registers[TDSC_VOLTAGE] <  g_controller_registers[TA_DOWN_LIMIT_VOLTAGE] ))
   {
     // Power is too low to run servos so shut them off
-    g_controller_registers[CM730_DXL_POWER] = 0;  // Turn it logically off.
-    UpdateHardwareAfterLocalWrite(CM730_DXL_POWER, 1);  // use the update function to do the real work.
+    g_controller_registers[TDSC_DXL_POWER] = 0;  // Turn it logically off.
+    UpdateHardwareAfterLocalWrite(TDSC_DXL_POWER, 1);  // use the update function to do the real work.
   }
 }
 
@@ -235,40 +265,41 @@ void CheckBatteryVoltage(void)
 //-----------------------------------------------------------------------------
 void CheckHardwareForLocalReadRequest(uint8_t register_id, uint8_t count_bytes)
 {
-  uint8_t i;
   while (count_bytes)
   {
     // Digital Input Range.
-    if (register_id == CM730_BUTTON)
+    if (register_id == TDSC_BUTTON)
     {
       uint16_t analog_value = analogRead(BUTTONS_ANALOG_PIN);
 
-      // quick and dirty analog code to set which if any button may be pressed. 
+      // quick and dirty analog code to set which if any button may be pressed.
       // Try to handle both
-      g_controller_registers[CM730_BUTTON] = (analog_value > 540) ? 3 : 
-            (analog_value > 450) ? 1 : (analog_value > 150)? 2 : 0;
+      g_controller_registers[TDSC_BUTTON] = (analog_value > 540) ? 3 :
+                                            (analog_value > 450) ? 1 : (analog_value > 150) ? 2 : 0;
     }
 
     // Digital Input Range.
-    else if ((register_id >= TA_GPIO_1) && (register_id <= TA_GPIO_6))
+    else if ((register_id >= TDSC_GPIO_1) && (register_id <= TDSC_GPIO_6))
     {
-      g_controller_registers[register_id] = digitalRead(g_controller_gpio_PIN_mapping_table[register_id - TA_GPIO_1]);
+      g_controller_registers[register_id] = digitalRead(g_controller_gpio_PIN_mapping_table[register_id - TDSC_GPIO_1]);
     }
 
     // IMU Range ?
     // Our battery voltage - is done in background
 
     // Analog input range
-    else if ((register_id >= CM730_ADC1_L) && (register_id <= CM730_ADC15_H))
+    else if ((register_id >= TDSC_ADC1_L) && (register_id <= TDSC_ADC15_H))
     {
+#ifndef USE_DEBUG_IOPINS  // Right now using these pins for debug stuff
       // Get which Analog input we should be getting.
-      i = (register_id - CM730_ADC1_L) / 2;
+      uint8_t i = (register_id - TDSC_ADC1_L) / 2;
       uint16_t analog_value = analogRead(g_controller_analog_PIN_mapping_table[i]);
-      g_controller_registers[CM730_ADC1_L + i * 2] = analog_value & 0xff;
-      g_controller_registers[CM730_ADC1_L + i * 2 + 1] = (analog_value >> 8) & 0xff;
+      g_controller_registers[TDSC_ADC1_L + i * 2] = analog_value & 0xff;
+      g_controller_registers[TDSC_ADC1_L + i * 2 + 1] = (analog_value >> 8) & 0xff;
       register_id++;
       if (!count_bytes--)
         break;
+#endif
     }
     register_id++;
     count_bytes--;
@@ -283,14 +314,21 @@ uint8_t ValidateWriteData(uint8_t register_id, uint8_t* data, uint8_t count_byte
 {
   uint16_t top = (uint16_t)register_id + count_bytes;
   if (count_bytes == 0  || ( top >= REG_TABLE_SIZE)) {
+#ifdef DBGSerial
+    DBGSerial.printf("VWDE: cb:%d, top:%d >= %d\n\r", count_bytes, top, REG_TABLE_SIZE);
+#endif
     return false;
   }
   // Check that the value written are acceptable
   for (uint8_t i = 0 ; i < count_bytes; i++ ) {
     uint8_t val = data[i];
-    if ((val < g_controller_registers_ranges[register_id][0] ) ||
-        (val > g_controller_registers_ranges[register_id][1] ))
+    if ((val < g_controller_registers_ranges[register_id + i][0] ) ||
+        (val > g_controller_registers_ranges[register_id + i][1] ))
     {
+#ifdef DBGSerial
+    DBGSerial.printf("VWDE: R:%d %d (%d %d)\n\r",  register_id + i, val, g_controller_registers_ranges[register_id + i][0],
+          g_controller_registers_ranges[register_id + i][1]);
+#endif
       return false;
     }
   }
@@ -308,53 +346,66 @@ void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_bytes)
   {
     switch (register_id)
     {
-      case CM730_DXL_POWER:
-        digitalWriteFast(AX_BUS_POWER_PIN, g_controller_registers[CM730_DXL_POWER]);
+      case TDSC_DXL_POWER:
+        digitalWriteFast(AX_BUS_POWER_PIN, g_controller_registers[TDSC_DXL_POWER]);
         break;
-      case CM730_LED_PANEL:
-        digitalWriteFast(LED_PIN, g_controller_registers[CM730_LED_PANEL] & 1);
+
+      // Handle Group move command.
+      case TDSC_GM_MOVE_COMMAND:
+        ProcessGroupMoveCommand();
+        break;
+
+      case TDSC_GM_IO_PIN_MOVE_ACTIVE:
+      case TDSC_GM_IO_PIN_MOVE_INTERPOLATE:
+        if (g_controller_registers[register_id] != 0xff)
+          pinMode(g_controller_registers[register_id], OUTPUT);
+        break;
+
+
+      case TDSC_LED_PANEL:
+        digitalWriteFast(LED_PIN, g_controller_registers[TDSC_LED_PANEL] & 1);
 #ifdef LED2_PIN
-        digitalWriteFast(LED2_PIN, (g_controller_registers[CM730_LED_PANEL] & 2) ? HIGH : LOW);
+        digitalWriteFast(LED2_PIN, (g_controller_registers[TDSC_LED_PANEL] & 2) ? HIGH : LOW);
 #endif
         break;
 #ifdef NEOPIXEL_PIN
-      case CM730_LED_HEAD_L:
+      case TDSC_LED_HEAD_L:
         if (count_bytes > 1)
           break;  // process on the high byte
-      case CM730_LED_HEAD_H:
+      case TDSC_LED_HEAD_H:
         {
-          uint16_t rgb = (((uint16_t)(g_controller_registers[CM730_LED_HEAD_H])) << 8) + (uint16_t)(g_controller_registers[CM730_LED_HEAD_L]);
+          uint16_t rgb = (((uint16_t)(g_controller_registers[TDSC_LED_HEAD_H])) << 8) + (uint16_t)(g_controller_registers[TDSC_LED_HEAD_L]);
           uint8_t r = (rgb  << 3) & 0xf8;
           uint8_t g = (rgb >> 2) & 0xf8;
-          uint8_t b = (rgb >> 7) & 0xf8; 
+          uint8_t b = (rgb >> 7) & 0xf8;
           strip.setPixelColor(0, r, g, b );
           strip.show(); // Initialize all pixels to 'off'
         }
         break;
 #endif
-      case TA_GPIO_MODE:
+      case TDSC_GPIO_MODE:
         // Set the GPIO pins modes.
-        if (g_controller_gpio_mode_save != g_controller_registers[TA_GPIO_MODE])
+        if (g_controller_gpio_mode_save != g_controller_registers[TDSC_GPIO_MODE])
         {
           mask = 0x1;
           for (i = 0; i < sizeof(g_controller_gpio_PIN_mapping_table); i++)
           {
-            if ((g_controller_gpio_mode_save & mask) != (g_controller_registers[TA_GPIO_MODE] & mask))
-              pinMode(g_controller_gpio_PIN_mapping_table[i], (g_controller_registers[TA_GPIO_MODE] & mask) ? OUTPUT : INPUT);
+            if ((g_controller_gpio_mode_save & mask) != (g_controller_registers[TDSC_GPIO_MODE] & mask))
+              pinMode(g_controller_gpio_PIN_mapping_table[i], (g_controller_registers[TDSC_GPIO_MODE] & mask) ? OUTPUT : INPUT);
             mask <<= 1;
           }
-          g_controller_gpio_mode_save = g_controller_registers[TA_GPIO_MODE];
+          g_controller_gpio_mode_save = g_controller_registers[TDSC_GPIO_MODE];
         }
         break;
-      case TA_GPIO_1:
-      case TA_GPIO_2:
-      case TA_GPIO_3:
-      case TA_GPIO_4:
-      case TA_GPIO_5:
-      case TA_GPIO_6:
-        i = register_id - TA_GPIO_1;
+      case TDSC_GPIO_1:
+      case TDSC_GPIO_2:
+      case TDSC_GPIO_3:
+      case TDSC_GPIO_4:
+      case TDSC_GPIO_5:
+      case TDSC_GPIO_6:
+        i = register_id - TDSC_GPIO_1;
         mask = 1 << i;
-        if ((g_controller_registers[TA_GPIO_MODE] & mask))
+        if ((g_controller_registers[TDSC_GPIO_MODE] & mask))
           digitalWrite(g_controller_gpio_PIN_mapping_table[i], g_controller_registers[register_id]);
         else
           pinMode(g_controller_gpio_PIN_mapping_table[i], g_controller_registers[register_id] ? INPUT_PULLUP : INPUT);
@@ -373,7 +424,7 @@ void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_bytes)
 //-----------------------------------------------------------------------------
 void InitalizeRegisterTable(void)
 {
-  uint8_t saved_reg_values[CM730_STATUS_RETURN_LEVEL + 1];
+  uint8_t saved_reg_values[TDSC_STATUS_RETURN_LEVEL + 1];
   uint8_t checksum = 0;
 
   // First check to see if valid version is stored in EEPROM...
@@ -381,9 +432,9 @@ void InitalizeRegisterTable(void)
     return;
 
   // Now read in the bytes from the EEPROM
-  for (int i = CM730_FIRMWARE_VERSION; i <= CM730_STATUS_RETURN_LEVEL; i++)
+  for (int i = TDSC_FIRMWARE_VERSION; i <= TDSC_STATUS_RETURN_LEVEL; i++)
   {
-    uint8_t ch = EEPROM.read(1 + i - CM730_FIRMWARE_VERSION);
+    uint8_t ch = EEPROM.read(1 + i - TDSC_FIRMWARE_VERSION);
     checksum += ch;
     saved_reg_values[i] = ch;
   }
@@ -392,9 +443,24 @@ void InitalizeRegisterTable(void)
   if (EEPROM.read(0) == checksum)
   {
     // Valid, so copy values into the working table
-    for (int i = CM730_FIRMWARE_VERSION; i <= CM730_STATUS_RETURN_LEVEL; i++)
+    for (int i = TDSC_FIRMWARE_VERSION; i <= TDSC_STATUS_RETURN_LEVEL; i++)
       g_controller_registers[i] = saved_reg_values[i];
   }
+  // Do minimal initialize of group move area.
+  g_controller_registers[TDSC_GM_SERVO_CNT] = 0;
+  g_controller_registers[TDSC_GM_SERVO_CNT_TOTAL] = 0;
+  g_controller_registers[TDSC_GM_FRAME_TIME_MS] = 20;         // default 20ms
+  g_controller_registers[TDSC_GM_IO_PIN_MOVE_ACTIVE] = 0xff;
+  g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE] = 0xff;
+  for (int i=0; i < TDSC_MAX_GM_SIZE; i++)
+    g_controller_registers[TDSC_GM_SERVO_0_ID + i] = i; // default to servos 1,2,3...
+
+  g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] = 0;
+  g_controller_registers[TDSC_GM_MOVE_COMMAND] = 0;              // Move Status options
+
+  // Single Servo Timed move Command
+  g_controller_registers[TDSC_TM_SLOT] = 0xff;
+
 }
 
 //-----------------------------------------------------------------------------
@@ -404,9 +470,9 @@ void SaveEEPromSectionsLocalRegisters(void)
 {
   // Prety stupid here. simply loop and write out data.  Will also keep a checksum...
   uint8_t checksum = 0;
-  for (int i = CM730_FIRMWARE_VERSION; i <= CM730_STATUS_RETURN_LEVEL; i++)
+  for (int i = TDSC_FIRMWARE_VERSION; i <= TDSC_STATUS_RETURN_LEVEL; i++)
   {
-    EEPROM.write(1 + i - CM730_FIRMWARE_VERSION, g_controller_registers[i]);
+    EEPROM.write(1 + i - TDSC_FIRMWARE_VERSION, g_controller_registers[i]);
     checksum += g_controller_registers[i];
   }
   // Lets write the Checksum

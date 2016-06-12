@@ -1,6 +1,6 @@
 //=============================================================================
 //Project Teensy Arbotix Pro
-//Description: To have an Teensy 3.1/3.2, semi emulate an Arbotix Pro or 
+//Description: To have an Teensy 3.1/3.2, semi emulate an Arbotix Pro or
 //      Robotis CM730
 //=============================================================================
 
@@ -39,7 +39,7 @@ unsigned long last_message_time;
 uint8_t g_passthrough_mode;
 
 //unsigned long baud = 1000000;
-unsigned long baud = 2000000;
+unsigned long baud = 1000000;
 IntervalTimer interval_timer_background_;
 
 
@@ -54,22 +54,22 @@ void setup()
   pinMode(LED2_PIN, OUTPUT);
   digitalWriteFast(LED2_PIN, LOW);
 #endif
-  
+
   // Temporary Debug stuff
 #ifdef USE_DEBUG_IOPINS
   pinMode(DEBUG_PIN_USB_INPUT, OUTPUT);
   pinMode(DEBUG_PIN_SEND_STATUS_PACKET, OUTPUT);
   pinMode(DEBUG_PIN_AX_INPUT, OUTPUT);
   pinMode(DEBUG_PIN_BACKGROUND, OUTPUT);
-  pinMode(3, OUTPUT);
-  pinMode(4, OUTPUT);
+  pinMode(DEBUG_PIN_FLUSH_TO_HOST, OUTPUT);
+  pinMode(DEBUG_PIN_AX_TO_HOST, OUTPUT);
 #endif
 #ifdef DBGSerial
   delay(2000);
   DBGSerial.begin(115200);
   delay(1000);
   DBGSerial.println("Teensy Arbotix Pro Start");
-#endif  
+#endif
 #ifdef NEOPIXEL_PIN
   strip.begin();
   strip.setPixelColor(0, 0x80, 0, 0 );
@@ -81,7 +81,7 @@ void setup()
   strip.setPixelColor(0, 0, 0, 0x80 );
   strip.show(); // Initialize all pixels to 'off'
 #endif
-  
+
   // Hack define which
 #ifdef HWSerial_TXPIN
   pinMode(HWSerial_TXPIN, INPUT_PULLUP);
@@ -89,19 +89,28 @@ void setup()
 
   pinMode(AX_BUS_POWER_PIN, OUTPUT);
   digitalWrite(AX_BUS_POWER_PIN, LOW);    // Start off with Servo power off.
-  
+
   PCSerial.begin(baud);	// USB, communication to PC or Mac
   ax12Init(1000000, &HWSERIAL, SERVO_DIRECTION_PIN);
-  
+
   setAXtoTX();
-  InitalizeRegisterTable(); 
+  InitalizeRegisterTable();
 
   // clear out USB Input queue
   FlushUSBInputQueue();
 
   // Make sure some of the output state matches our registers
-  UpdateHardwareAfterLocalWrite(CM730_LED_PANEL, CM730_LED_HEAD_H-CM730_LED_PANEL+1);
+  UpdateHardwareAfterLocalWrite(TDSC_LED_PANEL, TDSC_LED_HEAD_H - TDSC_LED_PANEL + 1);
 
+  // Double bugbug... Maybe some get changed Temporary Debug stuff
+#ifdef USE_DEBUG_IOPINS
+  pinMode(DEBUG_PIN_USB_INPUT, OUTPUT);
+  pinMode(DEBUG_PIN_SEND_STATUS_PACKET, OUTPUT);
+  pinMode(DEBUG_PIN_AX_INPUT, OUTPUT);
+  pinMode(DEBUG_PIN_BACKGROUND, OUTPUT);
+  pinMode(DEBUG_PIN_FLUSH_TO_HOST, OUTPUT);
+  pinMode(DEBUG_PIN_AX_TO_HOST, OUTPUT);
+#endif
 
   // Start up our background task
   interval_timer_background_.begin(BackgroundTimerInterrupt, 100000);  // setup for 100 times per second...
@@ -110,19 +119,19 @@ void setup()
 #ifdef USE_LSM9DS1
   // Try to startup imu
   g_imu.begin();
-#endif  
+#endif
 
-  for (int i=0;i<2; i++) {
+  for (int i = 0; i < 2; i++) {
     digitalWriteFast(LED_PIN, HIGH);
     delay(250);
     digitalWriteFast(LED_PIN, LOW);
     delay(250);
   }
- 
+
 }
 
 //-----------------------------------------------------------------------------
-// loop - Main Arduino loop function. 
+// loop - Main Arduino loop function.
 //-----------------------------------------------------------------------------
 void loop()
 {
@@ -130,47 +139,48 @@ void loop()
   debug_digitalWrite( DEBUG_PIN_USB_INPUT,  HIGH);
   bool did_something = ProcessInputFromUSB();
   debug_digitalWrite( DEBUG_PIN_USB_INPUT,  LOW);
-//  yield();  // Give a chance for other things to happen
+  //  yield();  // Give a chance for other things to happen
 
   // Call off to process any input that we may have received from the AXBuss
   debug_digitalWrite( DEBUG_PIN_AX_INPUT,  HIGH);
   did_something |= ProcessInputFromAXBuss();
   debug_digitalWrite( DEBUG_PIN_AX_INPUT,  LOW);
-//  yield();
-
-  // If we did not process any data input from USB or from AX Buss, maybe we should flush anything we have 
+  //  yield();
+  // See if we need to do any Interpolation.
+  PoseInterpolateStepTask();
+  // If we did not process any data input from USB or from AX Buss, maybe we should flush anything we have
   // pending to go back to main processor
 #if 0
-  if (!did_something) 
+  if (!did_something)
   {
     MaybeFlushDataBackToHost();
     debug_digitalWrite( DEBUG_PIN_BACKGROUND,  HIGH);
     CheckBatteryVoltage();
     debug_digitalWrite( DEBUG_PIN_BACKGROUND,  LOW);
   }
-#endif  
+#endif
 }
 
 uint8_t g_Timer_loop_count = 0;
 void BackgroundTimerInterrupt()
 {
-    debug_digitalWrite( DEBUG_PIN_BACKGROUND,  HIGH);
-    CheckBatteryVoltage();
+  debug_digitalWrite( DEBUG_PIN_BACKGROUND,  HIGH);
+  CheckBatteryVoltage();
 
-    g_Timer_loop_count++;
-    if (g_Timer_loop_count == 0xff) 
-    {
-      // Hack since reset button may not have pogo pin...
-      CheckHardwareForLocalReadRequest(CM730_BUTTON, 1);
-      if ( g_controller_registers[CM730_BUTTON] == 0x3)
-        SoftwareReset();
-    }
-    debug_digitalWrite(5,  LOW);
+  g_Timer_loop_count++;
+  if (g_Timer_loop_count == 0xff)
+  {
+    // Hack since reset button may not have pogo pin...
+    CheckHardwareForLocalReadRequest(TDSC_BUTTON, 1);
+    if ( g_controller_registers[TDSC_BUTTON] == 0x3)
+      SoftwareReset();
+  }
+  debug_digitalWrite(5,  LOW);
 }
 
 void SoftwareReset() {
-  #define SCB_AIRCR (*(volatile uint32_t *)0xE000ED0C) // Application Interrupt and Reset Control location
-//  SCB_AIRCR = 0x05FA0004;  //value provided by P. Stoffregen, Beerware License Thank you!
+#define SCB_AIRCR (*(volatile uint32_t *)0xE000ED0C) // Application Interrupt and Reset Control location
+  //  SCB_AIRCR = 0x05FA0004;  //value provided by P. Stoffregen, Beerware License Thank you!
 }
 
 
