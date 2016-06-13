@@ -122,9 +122,6 @@ bool ProcessInputFromUSB(void)
         if (rxbyte[PACKET_INSTRUCTION] == AX_CMD_SYNC_READ) {
           ax_state = AX_GET_PARAMETERS;
           ax_checksum =  rxbyte[PACKET_ID] + AX_CMD_SYNC_READ + rxbyte[PACKET_LENGTH];
-        } else if (rxbyte[PACKET_INSTRUCTION] == AX_CMD_BULK_READ) {
-          ax_state = AX_GET_PARAMETERS;
-          ax_checksum =  rxbyte[PACKET_ID] + AX_CMD_BULK_READ + rxbyte[PACKET_LENGTH];
         } else if (rxbyte[PACKET_ID] == g_controller_registers[TDSC_ID]) {
           if (rxbyte[PACKET_INSTRUCTION] == AX_PING) {
             ax_state = AX_SEARCH_PING;

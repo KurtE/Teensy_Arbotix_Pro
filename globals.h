@@ -15,7 +15,7 @@
 //#define HWSerial_TXPIN    1       // hack when we turn off TX pin turns to normal IO, try to set high...
 #define HWSERIAL Serial1
 #define DBGSerial Serial2
-#define USE_DEBUG_IOPINS
+//#define USE_DEBUG_IOPINS
 
 
 // Some options may depend on if we are communicating using USB or not.
@@ -118,7 +118,6 @@ extern uint8_t g_abToPCCnt;
 
 // Added commands
 #define AX_CMD_SYNC_READ      0x84    // USBTOAX
-#define AX_CMD_BULK_READ     0x92     // BULKREAD Arbotix Pro and others
 
 #define SYNC_READ_START_ADDR  5
 #define SYNC_READ_LENGTH      6
@@ -207,7 +206,7 @@ enum {
   // Extensions for Group moves
   // Two counts - First is count of the servos(TDSC_GM_SERVO_CNT) that are part of group moves, like the 18 leg servos on hexapod
   //   Second TDSC_GM_SERVO_CNT_TOTAL - allows for independant timed move servos like Pan servo on Hexapod.
-  TDSC_GM_SERVO_CNT                = 96,  // How many slots are used when user updates TDSC_GM_MOVE_COMMAND
+  TDSC_GM_SERVO_CNT                = 96,  // How many slots are used when user updates TDSC_GM_COMMAND
   TDSC_GM_SERVO_CNT_TOTAL,                // Total count - allows ones outside of group move.
   TDSC_GM_FRAME_TIME_MS,                  // Frame time in mS
   TDSC_GM_IO_PIN_MOVE_ACTIVE,             // option to use io pin to show that GM is active
@@ -217,7 +216,7 @@ enum {
   // ... Through Servo 32
   TDSC_GM_SERVO_31_ID               = (TDSC_GM_SERVO_0_ID + TDSC_MAX_GM_SIZE - 1),
   TDSC_GM_SERVO_CNT_MOVING,
-  TDSC_GM_MOVE_COMMAND,              // Move Status options
+  TDSC_GM_COMMAND,              // Move Status options
   TDSC_GM_MOVE_TIME_L,              // Low move time
   TDSC_GM_MOVE_TIME_H,              // high move time
   TDSC_GM_SERVO_0_GOAL_POS_L,       // Low goal position for first servo
@@ -227,6 +226,7 @@ enum {
   TDSC_GM_SERVO_31_GOAL_POS_H,         // Low goal position for first servo
 
   // Single Servo Timed move Command
+  TDSC_TM_COMMAND,                  // Like above command
   TDSC_TM_SLOT,                     // Which slot
   TDSC_TM_MOVE_TIME_L,
   TDSC_TM_MOVE_TIME_H,
@@ -280,6 +280,7 @@ extern void CheckHardwareForLocalReadRequest(uint8_t register_id, uint8_t count_
 extern bool ProcessInputFromUSB(void);
 extern bool ProcessInputFromAXBuss(void);
 extern void ProcessGroupMoveCommand(void);
+extern void ProcessTimedMoveCommand(void);
 
 extern void PoseInterpolateStepTask(void);
 

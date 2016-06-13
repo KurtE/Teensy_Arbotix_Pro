@@ -23,8 +23,7 @@ typedef struct _poseinfo {
 POSEINFO g_aPoseinfo[TDSC_MAX_GM_SIZE];
 
 // Define some Timer reference times and delta time.
-uint16_t g_wPoseLastFrameSysTime;
-uint16_t g_wPoseNextFrameWaitTime = g_controller_registers[TDSC_GM_FRAME_TIME_MS];
+uint32_t g_pose_next_frame_time = (uint32_t) - 1;
 
 //-----------------------------------------------------------------------------
 //  Forward references
@@ -34,26 +33,27 @@ extern void ReadInCurrentPose(void);
 extern void SetupGroupMove(void);
 
 //-----------------------------------------------------------------------------
-// ProcessGroupMoveCommand() - This gets called when the TDSC_GM_MOVE_COMMAND
+// ProcessGroupMoveCommand() - This gets called when the TDSC_GM_COMMAND
 //         register is updated.  The bits of this command are interpretated
 //         by this function.
 //-----------------------------------------------------------------------------
 void ProcessGroupMoveCommand(void)
 {
-  if (g_controller_registers[TDSC_GM_MOVE_COMMAND] == 0)
+  if (g_controller_registers[TDSC_GM_COMMAND] == 0)
     return;		// nothing specified.
-  if (g_controller_registers[TDSC_GM_MOVE_COMMAND] & TDSC_GM_CMD_ABORT)
+  if (g_controller_registers[TDSC_GM_COMMAND] & TDSC_GM_CMD_ABORT)
   {
     AbortGroupMove();
   }
-  if (g_controller_registers[TDSC_GM_MOVE_COMMAND] & TDSC_GM_CMD_READ)
+  // Hack if next frame is -1 first time through so better read in values.
+  if ((g_controller_registers[TDSC_GM_COMMAND] & TDSC_GM_CMD_READ) || (g_pose_next_frame_time == (uint32_t) - 1))
   {
     ReadInCurrentPose();
   }
   // Now see if we have a new move to setup.
-  if (g_controller_registers[TDSC_GM_MOVE_COMMAND] & (TDSC_GM_CMD_CHAIN | TDSC_GM_CMD_NEW))
+  if (g_controller_registers[TDSC_GM_COMMAND] & (TDSC_GM_CMD_CHAIN | TDSC_GM_CMD_NEW))
   {
-    if (g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] && (g_controller_registers[TDSC_GM_MOVE_COMMAND] & TDSC_GM_CMD_CHAIN ))
+    if (g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] && (g_controller_registers[TDSC_GM_COMMAND] & TDSC_GM_CMD_CHAIN ))
       g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] = TDSC_GM_CMD_CHAIN;	// just leave in chaining mode
     else
     {
@@ -61,8 +61,69 @@ void ProcessGroupMoveCommand(void)
     }
   }
   else
-    g_controller_registers[TDSC_GM_MOVE_COMMAND] = 0;	// clear out command
+    g_controller_registers[TDSC_GM_COMMAND] = 0;	// clear out command
 
+}
+
+//-----------------------------------------------------------------------------
+// ProcessTimedMoveCommand() - Add a singe timed move...
+//-----------------------------------------------------------------------------
+void ProcessTimedMoveCommand()
+{
+  // First verify slot is valid
+  uint8_t iSlot = g_controller_registers[TDSC_TM_SLOT];
+  if (iSlot >= g_controller_registers[TDSC_GM_SERVO_CNT_TOTAL])
+    return; // Nope bail.
+
+  if (g_controller_registers[TDSC_TM_COMMAND] == 0)
+    return;    // nothing specified.
+
+  if (g_controller_registers[TDSC_TM_COMMAND] & TDSC_GM_CMD_ABORT)
+  {
+    if (g_aPoseinfo[iSlot].speed_)
+    {
+      g_aPoseinfo[iSlot].next_pose_ = g_aPoseinfo[iSlot].pose_ ;
+      g_aPoseinfo[iSlot].speed_ = 0;
+      g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]--;  // was already moving so don't add twice.
+    }
+  }
+
+  if (g_controller_registers[TDSC_TM_COMMAND] & TDSC_GM_CMD_READ)
+  {
+    uint16_t w = ax12GetRegister(g_controller_registers[TDSC_GM_SERVO_0_ID + iSlot], AX_GOAL_POSITION_L, 2);
+    if (w != (uint16_t) - 1)
+      g_aPoseinfo[iSlot].pose_ = w << BIOLOID_SHIFT;
+    else
+      g_aPoseinfo[iSlot].pose_ = (uint16_t)512 << BIOLOID_SHIFT;  // If read fails init to something...
+  }
+
+  // Now see if we have a new move to setup.
+  if (g_controller_registers[TDSC_TM_COMMAND] & (TDSC_GM_CMD_CHAIN | TDSC_GM_CMD_NEW))
+  {
+    uint16_t wMoveTime = g_controller_registers[TDSC_TM_GOAL_POS_L] + (uint16_t)(g_controller_registers[TDSC_TM_MOVE_TIME_H] << 8);
+    uint16_t wMoveIters = (wMoveTime / g_controller_registers[TDSC_GM_FRAME_TIME_MS]) + 1;
+
+    g_aPoseinfo[iSlot].next_pose_ = ((uint16_t)(g_controller_registers[TDSC_TM_GOAL_POS_L] +
+                                     ((uint16_t)(g_controller_registers[TDSC_TM_GOAL_POS_H]) << 8)) << BIOLOID_SHIFT);
+
+    // Is this slot already moving?
+    if (g_aPoseinfo[iSlot].speed_)
+      g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]--;  // was already moving so don't add twice.
+
+    // Handle case where we already had a speed...
+    if (g_aPoseinfo[iSlot].next_pose_ != g_aPoseinfo[iSlot].pose_)
+    {
+      if (g_aPoseinfo[iSlot].next_pose_ > g_aPoseinfo[iSlot].pose_)
+      {
+        g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].next_pose_ - g_aPoseinfo[iSlot].pose_) / wMoveIters + 1;
+      } else {
+        g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].pose_ - g_aPoseinfo[iSlot].next_pose_) / wMoveIters + 1;
+      }
+      g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]++;
+    } else
+      g_aPoseinfo[iSlot].speed_ = 0;
+  }
+  g_controller_registers[TDSC_TM_COMMAND] = 0;
 }
 
 
@@ -72,7 +133,9 @@ void ProcessGroupMoveCommand(void)
 //-----------------------------------------------------------------------------
 void ReadInCurrentPose()
 {
-
+#ifdef DBGSerial
+  DBGSerial.println("GM: Read in Pose");
+#endif
   // Pass 1, cancel all, next pass look at PB for servo list to cancel
   // divert incoming data to a buffer for local processing
   // Tell the system we need the bytes ourself, don't pass on to the host
@@ -101,6 +164,9 @@ void ReadInCurrentPose()
 //-----------------------------------------------------------------------------
 void SetupGroupMove(void)
 {
+  if (g_controller_registers[TDSC_GM_SERVO_CNT] >= g_controller_registers[TDSC_GM_SERVO_CNT_TOTAL])
+    g_controller_registers[TDSC_GM_SERVO_CNT_TOTAL] = g_controller_registers[TDSC_GM_SERVO_CNT];
+
   int8_t cServosInterpolating = g_controller_registers[TDSC_GM_SERVO_CNT_MOVING];
   uint16_t wMoveTime = g_controller_registers[TDSC_GM_MOVE_TIME_L] + (uint16_t)(g_controller_registers[TDSC_GM_MOVE_TIME_H] << 8);
   uint16_t wMoveIters = (wMoveTime / g_controller_registers[TDSC_GM_FRAME_TIME_MS]) + 1;
@@ -108,11 +174,12 @@ void SetupGroupMove(void)
   // Now lets walk through the data extracting servos and positions
   // Try to hack in some performance helper if the user passes in the
   // servos in the order of the slots...
+  uint8_t goal_pos_reg_index = TDSC_GM_SERVO_0_GOAL_POS_L;
   for (uint8_t iSlot = 0; iSlot < g_controller_registers[TDSC_GM_SERVO_CNT]; iSlot++)
   {
-    g_aPoseinfo[iSlot].next_pose_ = ((uint16_t)(g_controller_registers[TDSC_GM_SERVO_0_GOAL_POS_L + 2 * iSlot] +
-                                     ((uint16_t)(g_controller_registers[TDSC_GM_SERVO_0_GOAL_POS_H + 2 * iSlot]) << 8)) << BIOLOID_SHIFT);
-
+    g_aPoseinfo[iSlot].next_pose_ = ((uint16_t)(g_controller_registers[goal_pos_reg_index] +
+                                     ((uint16_t)(g_controller_registers[goal_pos_reg_index + 1]) << 8)) << BIOLOID_SHIFT);
+    goal_pos_reg_index += 2;
     // Compute Speed.
     if (g_aPoseinfo[iSlot].speed_)
       cServosInterpolating--;	// was already moving so don't add twice.
@@ -134,17 +201,17 @@ void SetupGroupMove(void)
   if (cServosInterpolating < 0)
     cServosInterpolating = 0;
   if (!g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]) {
-    g_wPoseLastFrameSysTime = millis();	// timer for processing poses.
-    g_wPoseNextFrameWaitTime =  g_controller_registers[TDSC_GM_FRAME_TIME_MS];
+    g_pose_next_frame_time =  millis() + g_controller_registers[TDSC_GM_FRAME_TIME_MS];
     // fudge factor each servo adds 3 bytes (.01 second per byte) so to have commands end at the same time,
     // we fudge our start time to deal with this...
-    if (cServosInterpolating)
-      g_wPoseNextFrameWaitTime += ((uint16_t)(g_controller_registers[TDSC_GM_SERVO_CNT] - cServosInterpolating) * 3) / 2;
   }
   g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] = cServosInterpolating;   // don't clear if other move is happening
+#ifdef DBGSerial
+  DBGSerial.printf("GM: Pose T:%u I:%d C:%u\n\r", wMoveTime, wMoveIters, cServosInterpolating);
+#endif
 
   // Clear out command
-  g_controller_registers[TDSC_GM_MOVE_COMMAND] = 0;
+  g_controller_registers[TDSC_GM_COMMAND] = 0;
 
 }
 
@@ -170,7 +237,7 @@ void AbortGroupMove()
 
 void PoseInterpolateStepTask(void) {
   // If no interpolation is active or a frame timeout has not happened yet return now.
-  if (!g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] || ((millis() - g_wPoseLastFrameSysTime ) < g_wPoseNextFrameWaitTime))
+  if (!g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] || (millis() < g_pose_next_frame_time))
     return;
 
   // Turn on main move pin
@@ -180,10 +247,6 @@ void PoseInterpolateStepTask(void) {
 
   if (g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE] != 0xff)
     digitalWriteFast(g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE], HIGH);
-
-
-  // Don't just set to zero as to not try to accumulate deltas from desired timings.
-  g_wPoseLastFrameSysTime = millis();	// timer for processing poses.
 
   setAXtoTX();	// make sure we are in output mode.
   int length = 4 + (g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] * 3);   // 3 = id + pos(2byte)
@@ -199,7 +262,7 @@ void PoseInterpolateStepTask(void) {
   // Need to loop through all of the slots looking for items that need to be updated.
   // Also build a sync write to do the actual move.
   uint8_t bCntStillMoving = 0;
-  for (uint8_t iSlot = 0; iSlot < g_controller_registers[TDSC_GM_SERVO_CNT]; iSlot++) {
+  for (uint8_t iSlot = 0; iSlot < g_controller_registers[TDSC_GM_SERVO_CNT_TOTAL]; iSlot++) {
     int diff = (int)g_aPoseinfo[iSlot].next_pose_ - (int)g_aPoseinfo[iSlot].pose_;
     if (diff) {
       if (diff > 0) {
@@ -237,12 +300,12 @@ void PoseInterpolateStepTask(void) {
 
 
   g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] = bCntStillMoving;	// Update cnt to still do...
-  g_wPoseNextFrameWaitTime =  g_controller_registers[TDSC_GM_FRAME_TIME_MS];
+  g_pose_next_frame_time +=  g_controller_registers[TDSC_GM_FRAME_TIME_MS];
+
   // fudge factor each servo adds 3 bytes (.01 second per byte) so to have commands end at the same time,
   // we fudge our start time to deal with this...
   if (bCntStillMoving)
   {
-    g_wPoseNextFrameWaitTime += ((uint16_t)(g_controller_registers[TDSC_GM_SERVO_CNT] - bCntStillMoving) * 3) / 2;
   }
   else
   {

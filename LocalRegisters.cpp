@@ -123,7 +123,7 @@ const uint8_t g_controller_registers_ranges[][2] =
   {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff},       
   {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff}, {0, 0xff},   {0, 0xff},   {0, 0xff},       
   {0, 0xff},   // TDSC_GM_SERVO_CNT_MOVING,
-  {0, 0xff},   // TDSC_GM_MOVE_COMMAND,              // Move Status options
+  {0, 0xff},   // TDSC_GM_COMMAND,              // Move Status options
   {0, 0xff},   // TDSC_GM_MOVE_TIME_L,              // Low move time
   {0, 0xff},   // TDSC_GM_MOVE_TIME_H,              // high move time
   {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff}, {0, 0xff},{0, 0xff},         // TDSC_GM_SERVO_0_GOAL_POS_L H ,
@@ -351,8 +351,13 @@ void UpdateHardwareAfterLocalWrite(uint8_t register_id, uint8_t count_bytes)
         break;
 
       // Handle Group move command.
-      case TDSC_GM_MOVE_COMMAND:
+      case TDSC_GM_COMMAND:
         ProcessGroupMoveCommand();
+        break;
+        
+      // Timed move command  
+      case   TDSC_TM_COMMAND:
+        ProcessTimedMoveCommand();
         break;
 
       case TDSC_GM_IO_PIN_MOVE_ACTIVE:
@@ -456,7 +461,7 @@ void InitalizeRegisterTable(void)
     g_controller_registers[TDSC_GM_SERVO_0_ID + i] = i; // default to servos 1,2,3...
 
   g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] = 0;
-  g_controller_registers[TDSC_GM_MOVE_COMMAND] = 0;              // Move Status options
+  g_controller_registers[TDSC_GM_COMMAND] = 0;              // Move Status options
 
   // Single Servo Timed move Command
   g_controller_registers[TDSC_TM_SLOT] = 0xff;
