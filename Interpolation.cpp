@@ -18,12 +18,18 @@ typedef struct _poseinfo {
   uint16_t		pose_;
   uint16_t		next_pose_;
   uint16_t		speed_;
+
+  // Add queue for commands?
+  uint32_t    complete_time_;
+  uint16_t    queued_next_pose_;
+  uint16_t    queued_next_move_time_ms_;
 } POSEINFO;
 
 POSEINFO g_aPoseinfo[TDSC_MAX_GM_SIZE];
 
 // Define some Timer reference times and delta time.
 uint32_t g_pose_next_frame_time = (uint32_t) - 1;
+uint32_t g_pose_completed_time = (uint32_t) - 1;
 
 //-----------------------------------------------------------------------------
 //  Forward references
@@ -70,6 +76,8 @@ void ProcessGroupMoveCommand(void)
 //-----------------------------------------------------------------------------
 void ProcessTimedMoveCommand()
 {
+  // Add queue for commands?
+
   // First verify slot is valid
   uint8_t iSlot = g_controller_registers[TDSC_TM_SLOT];
   if (iSlot >= g_controller_registers[TDSC_GM_SERVO_CNT_TOTAL])
@@ -103,27 +111,39 @@ void ProcessTimedMoveCommand()
     uint16_t wMoveTime = g_controller_registers[TDSC_TM_GOAL_POS_L] + (uint16_t)(g_controller_registers[TDSC_TM_MOVE_TIME_H] << 8);
     uint16_t wMoveIters = (wMoveTime / g_controller_registers[TDSC_GM_FRAME_TIME_MS]) + 1;
 
-    g_aPoseinfo[iSlot].next_pose_ = ((uint16_t)(g_controller_registers[TDSC_TM_GOAL_POS_L] +
+    uint16_t next_pose = ((uint16_t)(g_controller_registers[TDSC_TM_GOAL_POS_L] +
                                      ((uint16_t)(g_controller_registers[TDSC_TM_GOAL_POS_H]) << 8)) << BIOLOID_SHIFT);
 
-    // Is this slot already moving?
-    if (g_aPoseinfo[iSlot].speed_)
-      g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]--;  // was already moving so don't add twice.
-
-    // Handle case where we already had a speed...
-    if (g_aPoseinfo[iSlot].next_pose_ != g_aPoseinfo[iSlot].pose_)
+    // Is this slot already logically moving.
+    if ((g_controller_registers[TDSC_TM_COMMAND] & TDSC_GM_CMD_CHAIN) && (micros() < g_aPoseinfo[iSlot].complete_time_))
     {
-      if (g_aPoseinfo[iSlot].next_pose_ > g_aPoseinfo[iSlot].pose_)
+      // Already logically moving so queue it up.
+      g_aPoseinfo[iSlot].queued_next_pose_ = next_pose;
+      g_aPoseinfo[iSlot].queued_next_move_time_ms_ = wMoveTime;
+    }
+    else
+    {
+      g_aPoseinfo[iSlot].next_pose_ = next_pose;
+      g_aPoseinfo[iSlot].complete_time_ = micros() + wMoveTime * 1000;
+      g_aPoseinfo[iSlot].queued_next_pose_ = -1;
+      if (g_aPoseinfo[iSlot].speed_)
+        g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]--;  // was already moving so don't add twice.
+
+      // Handle case where we already had a speed...
+      if (g_aPoseinfo[iSlot].next_pose_ != g_aPoseinfo[iSlot].pose_)
       {
-        g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].next_pose_ - g_aPoseinfo[iSlot].pose_) / wMoveIters + 1;
-      } else {
-        g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].pose_ - g_aPoseinfo[iSlot].next_pose_) / wMoveIters + 1;
-      }
-      g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]++;
-    } else
-      g_aPoseinfo[iSlot].speed_ = 0;
+        if (g_aPoseinfo[iSlot].next_pose_ > g_aPoseinfo[iSlot].pose_)
+        {
+          g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].next_pose_ - g_aPoseinfo[iSlot].pose_) / wMoveIters + 1;
+        } else {
+          g_aPoseinfo[iSlot].speed_ = (g_aPoseinfo[iSlot].pose_ - g_aPoseinfo[iSlot].next_pose_) / wMoveIters + 1;
+        }
+        g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]++;
+      } else
+        g_aPoseinfo[iSlot].speed_ = 0;
+    }
+    g_controller_registers[TDSC_TM_COMMAND] = 0;
   }
-  g_controller_registers[TDSC_TM_COMMAND] = 0;
 }
 
 
@@ -169,7 +189,11 @@ void SetupGroupMove(void)
 
   int8_t cServosInterpolating = g_controller_registers[TDSC_GM_SERVO_CNT_MOVING];
   uint16_t wMoveTime = g_controller_registers[TDSC_GM_MOVE_TIME_L] + (uint16_t)(g_controller_registers[TDSC_GM_MOVE_TIME_H] << 8);
-  uint16_t wMoveIters = (wMoveTime / g_controller_registers[TDSC_GM_FRAME_TIME_MS]) + 1;
+  // Round up to get number of iterations.
+  uint16_t wMoveIters = (wMoveTime + g_controller_registers[TDSC_GM_FRAME_TIME_MS] - 1) / g_controller_registers[TDSC_GM_FRAME_TIME_MS];
+
+  g_pose_next_frame_time =  micros() + g_controller_registers[TDSC_GM_FRAME_TIME_MS] * 1000;
+  g_pose_completed_time = micros() + (uint32_t)wMoveTime * 1000;
 
   // Now lets walk through the data extracting servos and positions
   // Try to hack in some performance helper if the user passes in the
@@ -179,6 +203,9 @@ void SetupGroupMove(void)
   {
     g_aPoseinfo[iSlot].next_pose_ = ((uint16_t)(g_controller_registers[goal_pos_reg_index] +
                                      ((uint16_t)(g_controller_registers[goal_pos_reg_index + 1]) << 8)) << BIOLOID_SHIFT);
+    g_aPoseinfo[iSlot].complete_time_ = g_pose_completed_time;
+    g_aPoseinfo[iSlot].queued_next_pose_ = -1;
+
     goal_pos_reg_index += 2;
     // Compute Speed.
     if (g_aPoseinfo[iSlot].speed_)
@@ -200,11 +227,9 @@ void SetupGroupMove(void)
   // If we are now starting a new move 0 out the move timer and calculate a good timeout
   if (cServosInterpolating < 0)
     cServosInterpolating = 0;
-  if (!g_controller_registers[TDSC_GM_SERVO_CNT_MOVING]) {
-    g_pose_next_frame_time =  millis() + g_controller_registers[TDSC_GM_FRAME_TIME_MS];
-    // fudge factor each servo adds 3 bytes (.01 second per byte) so to have commands end at the same time,
-    // we fudge our start time to deal with this...
-  }
+
+
+  // BUGBUG:: Should I round up complete time as well?
   g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] = cServosInterpolating;   // don't clear if other move is happening
 #ifdef DBGSerial
   DBGSerial.printf("GM: Pose T:%u I:%d C:%u\n\r", wMoveTime, wMoveIters, cServosInterpolating);
@@ -237,85 +262,86 @@ void AbortGroupMove()
 
 void PoseInterpolateStepTask(void) {
   // If no interpolation is active or a frame timeout has not happened yet return now.
-  if (!g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] || (millis() < g_pose_next_frame_time))
-    return;
+  if (g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] && (micros() >= g_pose_next_frame_time))
+  {
 
-  // Turn on main move pin
-  // This one could do only once when a group move happens
-  if (g_controller_registers[TDSC_GM_IO_PIN_MOVE_ACTIVE] != 0xff)
-    digitalWriteFast(g_controller_registers[TDSC_GM_IO_PIN_MOVE_ACTIVE], HIGH);
+    // Turn on main move pin
+    // This one could do only once when a group move happens
+    if (g_controller_registers[TDSC_GM_IO_PIN_MOVE_ACTIVE] != 0xff)
+      digitalWriteFast(g_controller_registers[TDSC_GM_IO_PIN_MOVE_ACTIVE], HIGH);
 
-  if (g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE] != 0xff)
-    digitalWriteFast(g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE], HIGH);
+    if (g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE] != 0xff)
+      digitalWriteFast(g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE], HIGH);
 
-  setAXtoTX();	// make sure we are in output mode.
-  int length = 4 + (g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] * 3);   // 3 = id + pos(2byte)
-  int checksum = 254 + length + AX_SYNC_WRITE + 2 + AX_GOAL_POSITION_L;
-  ax12writeB(0xFF);
-  ax12writeB(0xFF);
-  ax12writeB(0xFE);
-  ax12writeB(length);
-  ax12writeB(AX_SYNC_WRITE);
-  ax12writeB(AX_GOAL_POSITION_L);
-  ax12writeB(2);
+    setAXtoTX();	// make sure we are in output mode.
+    int length = 4 + (g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] * 3);   // 3 = id + pos(2byte)
+    int checksum = 254 + length + AX_SYNC_WRITE + 2 + AX_GOAL_POSITION_L;
+    ax12writeB(0xFF);
+    ax12writeB(0xFF);
+    ax12writeB(0xFE);
+    ax12writeB(length);
+    ax12writeB(AX_SYNC_WRITE);
+    ax12writeB(AX_GOAL_POSITION_L);
+    ax12writeB(2);
 
-  // Need to loop through all of the slots looking for items that need to be updated.
-  // Also build a sync write to do the actual move.
-  uint8_t bCntStillMoving = 0;
-  for (uint8_t iSlot = 0; iSlot < g_controller_registers[TDSC_GM_SERVO_CNT_TOTAL]; iSlot++) {
-    int diff = (int)g_aPoseinfo[iSlot].next_pose_ - (int)g_aPoseinfo[iSlot].pose_;
-    if (diff) {
-      if (diff > 0) {
-        if (diff <= g_aPoseinfo[iSlot].speed_) {
-          g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
-          g_aPoseinfo[iSlot].speed_ = 0;
+    // Need to loop through all of the slots looking for items that need to be updated.
+    // Also build a sync write to do the actual move.
+    uint8_t bCntStillMoving = 0;
+    for (uint8_t iSlot = 0; iSlot < g_controller_registers[TDSC_GM_SERVO_CNT_TOTAL]; iSlot++) {
+      int diff = (int)g_aPoseinfo[iSlot].next_pose_ - (int)g_aPoseinfo[iSlot].pose_;
+      if (diff) {
+        if (diff > 0) {
+          if (diff <= g_aPoseinfo[iSlot].speed_) {
+            g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
+            g_aPoseinfo[iSlot].speed_ = 0;
+          } else {
+            g_aPoseinfo[iSlot].pose_ += g_aPoseinfo[iSlot].speed_;
+            bCntStillMoving++;
+          }
         } else {
-          g_aPoseinfo[iSlot].pose_ += g_aPoseinfo[iSlot].speed_;
-          bCntStillMoving++;
+          if (-diff <= g_aPoseinfo[iSlot].speed_) {
+            g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
+            g_aPoseinfo[iSlot].speed_ = 0;
+          } else {
+            g_aPoseinfo[iSlot].pose_ -= g_aPoseinfo[iSlot].speed_;
+            bCntStillMoving++;
+          }
         }
-      } else {
-        if (-diff <= g_aPoseinfo[iSlot].speed_) {
-          g_aPoseinfo[iSlot].pose_ = g_aPoseinfo[iSlot].next_pose_;
-          g_aPoseinfo[iSlot].speed_ = 0;
-        } else {
-          g_aPoseinfo[iSlot].pose_ -= g_aPoseinfo[iSlot].speed_;
-          bCntStillMoving++;
-        }
+
+        // Output the three bytes for this servo
+        int temp = g_aPoseinfo[iSlot].pose_ >> BIOLOID_SHIFT;
+        checksum += (temp & 0xff) + (temp >> 8) + g_controller_registers[TDSC_GM_SERVO_0_ID + iSlot];
+        ax12writeB(g_controller_registers[TDSC_GM_SERVO_0_ID + iSlot]);
+        ax12writeB(temp & 0xff);
+        ax12writeB(temp >> 8);
       }
-
-      // Output the three bytes for this servo
-      int temp = g_aPoseinfo[iSlot].pose_ >> BIOLOID_SHIFT;
-      checksum += (temp & 0xff) + (temp >> 8) + g_controller_registers[TDSC_GM_SERVO_0_ID + iSlot];
-      ax12writeB(g_controller_registers[TDSC_GM_SERVO_0_ID + iSlot]);
-      ax12writeB(temp & 0xff);
-      ax12writeB(temp >> 8);
     }
+    // And output the checksum for the move.
+    ax12writeB(0xff - (checksum % 256));
+
+    // Let host this output is done.
+    if (g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE] != 0xff)
+      digitalWriteFast(g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE], LOW);
+
+
+    g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] = bCntStillMoving;	// Update cnt to still do...
+    g_pose_next_frame_time +=  g_controller_registers[TDSC_GM_FRAME_TIME_MS] * 1000;
+
   }
-  // And output the checksum for the move.
-  ax12writeB(0xff - (checksum % 256));
 
-  // Let host this output is done.
-  if (g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE] != 0xff)
-    digitalWriteFast(g_controller_registers[TDSC_GM_IO_PIN_MOVE_INTERPOLATE], LOW);
-
-
-  g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] = bCntStillMoving;	// Update cnt to still do...
-  g_pose_next_frame_time +=  g_controller_registers[TDSC_GM_FRAME_TIME_MS];
-
-  // fudge factor each servo adds 3 bytes (.01 second per byte) so to have commands end at the same time,
-  // we fudge our start time to deal with this...
-  if (bCntStillMoving)
+  // Now see if we have any pending moves to go.
+  // See if the host has queued up a new move and the apropriate time has elapsed.
+  //
+  if (micros() > g_pose_completed_time)
   {
-  }
-  else
-  {
-    // We finished our group move, so cleanup anything we need to.
+    // Signal that the last pose should be completed
     if (g_controller_registers[TDSC_GM_IO_PIN_MOVE_ACTIVE] != 0xff)
       digitalWriteFast(g_controller_registers[TDSC_GM_IO_PIN_MOVE_ACTIVE], LOW);
-    // See if there is a move waiting to be done.
+
+    g_pose_completed_time = (uint32_t) - 1; // Should not trigger again.
+
     if (g_controller_registers[TDSC_GM_SERVO_CNT_MOVING] & TDSC_GM_CMD_CHAIN)
     {
-      // We had a pending
       SetupGroupMove(); // this will setup the next move and clear out the status flag.
     }
   }
